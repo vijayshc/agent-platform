@@ -1,0 +1,42 @@
+Flask>=2.3.3
+Flask-Login
+Flask-WTF
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Mail
+Flask-CORS>=4.0.0
+PyJWT>=2.8.0
+python-dotenv # Added for .env file support
+aiosqlite
+pandas
+openpyxl
+openai>=2.0
+requests
+chromadb>=0.4.0
+sentence-transformers
+rank-bm25
+nltk
+# LangGraph Core Execution Framework
+langgraph>=1.2.0
+langchain>=1.4.0
+langchain-core>=1.6.0
+langchain-openai>=1.6.0
+langgraph-checkpoint-sqlite>=3.1.0
+langchain-mcp-adapters>=0.3.0
+deepagents>=0.7.0
+langgraph-supervisor>=0.0.31
+langgraph-swarm>=0.1.0
+mcp[http]>=1.2.0
+mcp>=1.2.0
+ldap3>=2.9
+
+# Additional dependencies identified from import analysis
+numpy
+bcrypt
+werkzeug
+aiohttp
+markitdown
+uvicorn
+starlette
+httpx
+markitdown[all]

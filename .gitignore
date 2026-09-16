@@ -1,0 +1,85 @@
+# Python bytecode files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Arize Phoenix trace store (lives at the project root, see src/services/phoenix_service.py)
+.phoenix/
+
+.maf-gaps
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Node modules (if any)
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+chroma_data/
+
+logs/
+
+temp/
+
+# File browser metadata
+uploads/.file_metadata.json
+
+uploads/
+
+.playwright-mcp/
+playwright-report/
+test-results/
+blob-report/
+.chromadb_service
+
+# Skill toolchain installed locally for agents (pptxgenjs etc.)
+.agent-node/
+.npm-cache/
+
+.agent-python/
+# Hosted app sockets live under uploads/ and are already ignored.
+samples/
+
+# Tester/reviewer evidence artifacts (screenshots, reports)
+.tester_evidence/
+
+docs/

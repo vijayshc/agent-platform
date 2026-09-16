@@ -1,0 +1,7 @@
+employee_id,name,description,department,year,salary
+001,Ada Lovelace,Invented the first algorithm and wrote extensive notes,Engineering,2024,120000
+002,Grace Hopper,Wrote the first compiler and popularised COBOL,Engineering,2023,135000
+003,Alan Turing,Formalised computation and cryptanalysis,Research,2024,150000
+004,Katherine Johnson,Calculated orbital trajectories for NASA,Research,2023,110000
+005,Claude Shannon,Founded information theory,Research,2025,140000
+006,Margaret Hamilton,Engineered the Apollo guidance software,Engineering,2025,128000

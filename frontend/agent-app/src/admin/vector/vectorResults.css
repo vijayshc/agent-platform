@@ -1,0 +1,298 @@
+/* Result cards, notices and loading states for the vector search console. */
+
+.vb-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vb-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vb-truncated {
+  font-size: 11.5px;
+  color: var(--warning-color);
+}
+
+.vb-hit {
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--card-bg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.vb-hit:hover {
+  border-color: var(--input-focus-border);
+  box-shadow: var(--card-shadow);
+}
+
+.vb-hit-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vb-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--hover-bg);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.vb-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.vb-badge.semantic {
+  color: var(--info-color);
+  background: color-mix(in srgb, var(--info-color) 14%, transparent);
+}
+
+.vb-badge.keyword {
+  color: var(--warning-color);
+  background: color-mix(in srgb, var(--warning-color) 16%, transparent);
+}
+
+.vb-badge.both,
+.vb-badge.hybrid {
+  color: var(--success-color);
+  background: color-mix(in srgb, var(--success-color) 14%, transparent);
+}
+
+.vb-badge.filter {
+  color: var(--text-secondary);
+  background: var(--hover-bg);
+}
+
+.vb-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.vb-score-value {
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.vb-score-kw {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--text-muted);
+}
+
+.vb-bar {
+  display: inline-block;
+  width: 96px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--hover-bg);
+  overflow: hidden;
+}
+
+.vb-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--info-color);
+}
+
+.vb-bar-fill.keyword {
+  background: var(--warning-color);
+}
+
+.vb-bar-fill.both,
+.vb-bar-fill.hybrid {
+  background: var(--success-color);
+}
+
+.vb-bar-fill.filter {
+  background: var(--text-muted);
+}
+
+.vb-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  border-radius: 8px;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+
+.vb-icon-btn + .vb-icon-btn {
+  margin-left: 0;
+}
+
+.vb-icon-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.vb-icon-btn .rotated {
+  transform: rotate(180deg);
+}
+
+.vb-hit-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.vb-hit.expanded .vb-hit-text {
+  display: block;
+  white-space: pre-wrap;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.vb-mark {
+  background: color-mix(in srgb, var(--warning-color) 30%, transparent);
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.vb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.vb-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 340px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.vb-meta-key {
+  color: var(--text-muted);
+}
+
+.vb-meta-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-meta-more {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---------- notices and skeletons ---------- */
+
+.vb-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--card-bg);
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.vb-notice.error {
+  border-color: color-mix(in srgb, var(--danger-color) 45%, transparent);
+  color: var(--danger-color);
+}
+
+.vb-notice strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.vb-notice.error strong {
+  color: var(--danger-color);
+}
+
+.vb-notice-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.vb-notice .aa-btn {
+  margin-left: auto;
+}
+
+.vb-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vb-skeleton {
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--card-bg);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.vb-skeleton-line {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--hover-bg);
+  animation: vb-pulse 1.4s ease-in-out infinite;
+}
+
+.vb-skeleton-line.short {
+  width: 22%;
+}
+
+.vb-skeleton-line.medium {
+  width: 55%;
+}
+
+@keyframes vb-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.vb-muted {
+  color: var(--text-muted);
+}

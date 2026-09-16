@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if error_code == 404 %}Page Not Found
+{% elif error_code == 403 %}Forbidden
+{% elif error_code == 500 %}Server Error
+{% elif request.path.startswith('/observability') or request.path.startswith('/agent-runs') %}Observability
+{% elif request.path.startswith('/agent-studio') %}Agent Studio
+{% else %}Agents
+{% endif %}
+{% endblock %}
+
+{% block body_class %}agent-app-page{% endblock %}
+
+{% block head %}
+{{ super() }}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="stylesheet" href="{{ url_for('static', filename=agent_css) }}">
+{% endblock %}
+
+{% block content %}
+<div id="agent-app-root"></div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  // Expose a transient error code (404/403/500) so the React SPA can render the
+  // matching status page for the current request. Undefined on normal routes.
+  window.__ERROR_CODE__ = {{ error_code if error_code is not none else 'null' }};
+</script>
+<script type="module" src="{{ url_for('static', filename=agent_js) }}"></script>
+{% endblock %}

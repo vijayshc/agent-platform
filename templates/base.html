@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %}Text2SQL Assistant{% endblock %}</title>
+
+    <!-- Unified Theme System CSS (defines the CSS variables consumed by the React
+         app: --card-bg, --input-bg, --button-primary-bg, --hover-bg, etc.). -->
+    <link href="{{ url_for('static', filename='css/themes.css') }}" rel="stylesheet">
+
+    <!-- Early theme preload to avoid flicker -->
+    <script src="{{ url_for('static', filename='js/theme-preload.js') }}"></script>
+
+    <style>
+      /* The React SPA owns the full viewport. Make html/body and the mount node
+         stretch so the app's flex layout fills the screen. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        overflow: hidden;
+      }
+      #agent-app-root {
+        height: 100%;
+        width: 100%;
+        display: flex;
+      }
+      .aa-auth-screen,
+      .aa-error-card-wrap {
+        height: 100%;
+      }
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+
+    <!-- Theme Management -->
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script>document.body.classList.remove('theme-preload');</script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

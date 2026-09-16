@@ -1,0 +1,451 @@
+/* Read-only Phoenix trace explorer for a single run.
+ *
+ * Every colour is a theme token (or a color-mix of one) so the explorer reads
+ * correctly in both light and dark themes.  Layout reuses the shell's
+ * .aa-run-split / .aa-waterfall / .aa-span / .aa-detail primitives where they
+ * already fit, and only adds the trace-specific rows on top. */
+
+.aa-tx-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--light-bg);
+}
+
+/* ---------------------------------------------------------------- header */
+
+.aa-tx-headbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.aa-tx-back {
+  flex-shrink: 0;
+  padding: 5px 12px;
+}
+
+.aa-tx-headmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aa-tx-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aa-tx-agent {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.aa-tx-task {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.aa-tx-task.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.aa-tx-task-toggle {
+  align-self: flex-start;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--info-color);
+  cursor: pointer;
+}
+
+.aa-tx-error-line {
+  font-size: 12px;
+  color: var(--danger-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aa-tx-headactions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.aa-tx-ids {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.aa-tx-copy-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 260px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--hover-bg);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+  transition: color var(--transition-speed), border-color var(--transition-speed);
+}
+
+.aa-tx-copy-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--input-border);
+}
+
+.aa-tx-copy-chip.copied {
+  color: var(--success-color);
+  border-color: color-mix(in srgb, var(--success-color) 45%, var(--border-color));
+}
+
+.aa-tx-copy-chip-label {
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.aa-tx-copy-chip-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aa-tx-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--info-color);
+}
+
+.aa-tx-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--info-color);
+  animation: aa-tx-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes aa-tx-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.75); }
+}
+
+/* --------------------------------------------------------- summary cards */
+
+.aa-tx-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.aa-tx-stat {
+  min-width: 0;
+  padding: 7px 10px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--light-bg);
+}
+
+.aa-tx-stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aa-tx-stat-value {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aa-tx-stat-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aa-tx-stat.danger {
+  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--danger-color) 8%, var(--light-bg));
+}
+
+.aa-tx-stat.danger .aa-tx-stat-value {
+  color: var(--danger-color);
+}
+
+/* ------------------------------------------------------------- toolbar */
+
+.aa-tx-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.aa-tx-kinds {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.aa-tx-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed);
+}
+
+.aa-tx-chip:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.aa-tx-chip.active {
+  color: var(--info-color);
+  border-color: color-mix(in srgb, var(--info-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--info-color) 14%, transparent);
+}
+
+.aa-tx-chip-count {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.aa-tx-toolbar-spacer {
+  margin-left: auto;
+}
+
+.aa-tx-search {
+  width: 190px;
+  max-width: 42vw;
+  padding: 5px 9px !important;
+  font-size: 12px !important;
+}
+
+.aa-tx-select {
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+}
+
+.aa-tx-toolbar-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+/* -------------------------------------------------------- empty states */
+
+.aa-tx-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+}
+
+.aa-tx-empty-card {
+  max-width: 520px;
+  width: 100%;
+  padding: 26px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.aa-tx-empty-icon {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.aa-tx-empty-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.aa-tx-empty-copy {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aa-tx-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------- skeleton */
+
+.aa-tx-skeleton {
+  flex: 1;
+  min-height: 0;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aa-tx-skeleton-head {
+  height: 22px;
+  width: 40%;
+  border-radius: 8px;
+}
+
+.aa-tx-skeleton-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 8px;
+}
+
+.aa-tx-skeleton-card {
+  height: 54px;
+  border-radius: 10px;
+}
+
+.aa-tx-skeleton-body {
+  flex: 1;
+  min-height: 120px;
+  border-radius: 12px;
+}
+
+.aa-tx-skeleton-head,
+.aa-tx-skeleton-card,
+.aa-tx-skeleton-body {
+  background: linear-gradient(90deg, var(--hover-bg) 25%, var(--border-color) 50%, var(--hover-bg) 75%);
+  background-size: 200% 100%;
+  animation: aa-tx-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes aa-tx-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 800px) {
+  .aa-run-split.aa-tx-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 45%) minmax(0, 1fr);
+  }
+
+  .aa-tx-tree {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .aa-tx-search {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* ------------------------------------------------ review-pass polish */
+
+/* Copy chips must not reflow the row when the value becomes "Copied". */
+.aa-tx-copy-chip {
+  min-width: 232px;
+  justify-content: space-between;
+}
+
+/* The trace is missing but the run's own record still matters: stack the
+   explanatory card above the local run data instead of hiding it. */
+.aa-tx-empty-stack {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px;
+}
+
+.aa-tx-empty-stack .aa-tx-empty-card {
+  max-width: 620px;
+}
+
+.aa-tx-local-run {
+  text-align: left;
+}

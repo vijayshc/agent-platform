@@ -1,0 +1,20 @@
+{
+  "index.html": {
+    "file": "assets/index-DoZrSy5d.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/datatables.net-dt/js/dataTables.dataTables.mjs"
+    ],
+    "css": [
+      "assets/index-CGXhAp16.css"
+    ]
+  },
+  "node_modules/datatables.net-dt/js/dataTables.dataTables.mjs": {
+    "file": "assets/dataTables.dataTables-CHC18BqS.js",
+    "name": "dataTables.dataTables",
+    "src": "node_modules/datatables.net-dt/js/dataTables.dataTables.mjs",
+    "isDynamicEntry": true
+  }
+}

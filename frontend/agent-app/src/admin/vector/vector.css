@@ -1,0 +1,576 @@
+/* Vector database search console. Uses the shared theme tokens only. */
+
+.vb-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ---------- header ---------- */
+
+.vb-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+}
+
+.vb-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.vb-head-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vb-stat {
+  font-size: 12px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+
+.vb-stat b {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+/* ---------- layout ---------- */
+
+.vb-body {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.vb-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ---------- collections rail ---------- */
+
+.vb-rail {
+  position: sticky;
+  top: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+
+.vb-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.vb-rail-title {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.vb-count-pill {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  background: var(--hover-bg);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* The input keeps the framework's themed styling; only room for the icon is
+   added, so there is a single border and one focus ring. */
+.vb-rail-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 10px 12px 4px;
+}
+
+.vb-rail-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.vb-rail-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  font-size: 12.5px;
+  padding-left: 32px !important;
+  border-radius: 9px !important;
+}
+
+.vb-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+}
+
+.vb-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-speed), border-color var(--transition-speed);
+}
+
+.vb-rail-item:hover {
+  background: var(--hover-bg);
+}
+
+.vb-rail-item.active {
+  background: color-mix(in srgb, var(--info-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--info-color) 35%, transparent);
+}
+
+.vb-rail-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--hover-bg);
+  color: var(--text-secondary);
+}
+
+.vb-rail-item.active .vb-rail-icon {
+  background: color-mix(in srgb, var(--info-color) 18%, transparent);
+  color: var(--info-color);
+}
+
+.vb-rail-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vb-rail-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vb-rail-meta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.vb-rail-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- collection header / placeholder ---------- */
+
+.vb-collection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vb-collection-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vb-collection-title h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.vb-meta-tag {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.vb-collection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vb-access-pill {
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  background: var(--input-bg);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-access-pill.restricted {
+  color: var(--info-color);
+  border-color: color-mix(in srgb, var(--info-color) 40%, transparent);
+  background: color-mix(in srgb, var(--info-color) 12%, transparent);
+}
+
+.vb-placeholder {
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.vb-placeholder h3 {
+  margin: 12px 0 4px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.vb-placeholder p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.vb-center {
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- search card ---------- */
+
+.vb-search-card {
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--card-shadow);
+}
+
+.vb-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vb-search-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.vb-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Keep the framework's themed input styling; only add room for the icon. */
+.vb-search-card .vb-search-input {
+  width: 100%;
+  padding-left: 36px !important;
+  padding-right: 34px;
+  font-size: 14px;
+  height: 40px;
+}
+
+.vb-clear {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.vb-clear:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.vb-search-btn {
+  flex: 0 0 auto;
+  height: 40px;
+  min-width: 104px;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+}
+
+.vb-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vb-modes {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--hover-bg);
+}
+
+.vb-mode {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.vb-mode:hover {
+  color: var(--text-primary);
+}
+
+.vb-mode.active {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  box-shadow: var(--card-shadow);
+}
+
+.vb-limit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vb-limit select {
+  padding: 5px 8px;
+  font-size: 12.5px;
+  border-radius: 9px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.vb-mode-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.vb-dirty-hint {
+  font-size: 11.5px;
+  color: var(--warning-color);
+}
+
+/* ---------- metadata panel: columns + where filter ---------- */
+
+.vb-meta-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+.vb-meta-col {
+  padding: 14px;
+  min-width: 0;
+}
+
+.vb-meta-fields {
+  border-right: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--hover-bg) 35%, transparent);
+}
+
+.vb-meta-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.vb-panel-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.vb-field-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.vb-field-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vb-field-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.vb-field-note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.vb-field-example {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.vb-where-input {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12.5px !important;
+  line-height: 1.5;
+  padding: 9px 11px !important;
+  border-radius: 10px !important;
+}
+
+.vb-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vb-filter-actions .aa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vb-filter-state {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.vb-filter-state.active {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.vb-filter-error {
+  font-size: 12px;
+  color: var(--danger-color);
+  word-break: break-word;
+}
+
+.vb-filter-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.vb-filter-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: var(--hover-bg);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--text-secondary);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1080px) {
+  .vb-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vb-rail {
+    position: static;
+  }
+
+  .vb-rail-list {
+    max-height: 240px;
+  }
+
+  .vb-meta-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vb-meta-fields {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+}

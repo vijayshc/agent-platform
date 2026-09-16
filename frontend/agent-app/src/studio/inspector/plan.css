@@ -1,0 +1,250 @@
+/* Inspector plan, report, route editor and dialog surfaces.
+   Tokens come from static/css/themes.css — never hardcode a colour. */
+
+/* -------------------------------------------------------------- plan panel */
+
+.as-plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.as-plan-group {
+  margin-top: 12px;
+}
+
+.as-plan-group h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.as-plan-card {
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--info-color);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--hover-bg) 40%, transparent);
+}
+
+.as-plan-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.as-plan-name {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.as-plan-facts {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.as-plan-facts li {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.as-plan-mw {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.as-plan-none {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.as-plan-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 10px 0 0;
+}
+
+.as-plan-loading {
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ report */
+
+.as-report-summary {
+  font-size: 12px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.as-report-summary.is-ok {
+  color: var(--success-color);
+  border-color: color-mix(in srgb, var(--success-color) 40%, transparent);
+}
+
+.as-report-summary.is-bad {
+  color: var(--danger-color);
+  border-color: color-mix(in srgb, var(--danger-color) 40%, transparent);
+}
+
+.as-report-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+
+.as-report-item code {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  /* Long codes wrap instead of squeezing the message to a few characters. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-top: 1px;
+}
+
+.as-report-item > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.as-report-item.is-error {
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger-color) 30%, transparent);
+  color: var(--danger-color);
+}
+
+.as-report-item.is-warn {
+  background: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warning-color) 30%, transparent);
+  color: var(--warning-color);
+}
+
+/* ------------------------------------------------------------ skill editor */
+
+.as-skills {
+  display: flex;
+  gap: 12px;
+  min-height: 380px;
+  max-height: 62vh;
+}
+
+.as-skills-rail {
+  width: 190px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-color);
+  padding-right: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.as-skills-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.as-skill-item {
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-skill-item:hover {
+  background: var(--hover-bg);
+}
+
+.as-skill-item-active {
+  border-color: var(--info-color);
+  background: color-mix(in srgb, var(--info-color) 12%, transparent);
+}
+
+.as-script-row {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.as-script-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+/* --------------------------------------------------- access / integration */
+
+.as-access-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.as-code-block {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--input-bg);
+}
+
+.as-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--card-bg);
+}
+
+.as-code-block pre {
+  margin: 0;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}

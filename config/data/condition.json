@@ -1,0 +1,25 @@
+{
+  "joins": [
+    {
+      "name": "customer_orders",
+      "left_table": "customers",
+      "right_table": "orders",
+      "join_type": "INNER",
+      "condition": "customers.customer_id = orders.customer_id"
+    },
+    {
+      "name": "orders_items",
+      "left_table": "orders",
+      "right_table": "order_items",
+      "join_type": "INNER",
+      "condition": "orders.order_id = order_items.order_id"
+    },
+    {
+      "name": "products_order_items",
+      "left_table": "products",
+      "right_table": "order_items",
+      "join_type": "INNER",
+      "condition": "products.product_id = order_items.product_id"
+    }
+  ]
+}

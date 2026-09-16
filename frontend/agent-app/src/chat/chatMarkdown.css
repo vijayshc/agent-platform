@@ -1,0 +1,284 @@
+/* Scoped Markdown, Code Highlighting, and Table styles fully integrated with theme system */
+
+.chat-markdown {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.chat-markdown p {
+  margin: 0 0 10px;
+}
+
+.chat-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-weight: 650;
+  color: var(--text-primary);
+  margin: 16px 0 8px;
+  line-height: 1.3;
+}
+
+.chat-markdown h1 { font-size: 1.35em; }
+.chat-markdown h2 { font-size: 1.2em; }
+.chat-markdown h3 { font-size: 1.08em; }
+
+.chat-markdown ul,
+.chat-markdown ol {
+  margin: 6px 0 10px 20px;
+  padding: 0;
+}
+
+.chat-markdown li {
+  margin-bottom: 4px;
+}
+
+.chat-markdown blockquote {
+  margin: 10px 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--info-color, #3b82f6);
+  background: var(--hover-bg);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+}
+
+.chat-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 14px 0;
+}
+
+.chat-markdown a {
+  color: var(--info-color, #3b82f6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-markdown a:hover {
+  color: var(--primary-color);
+}
+
+.chat-inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  color: var(--syntax-function, var(--info-color));
+}
+
+/* Code Block with Theme Integration */
+.chat-code-card {
+  margin: 12px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg, var(--card-bg));
+  overflow: hidden;
+  box-shadow: var(--card-shadow, 0 2px 8px rgba(0, 0, 0, 0.15));
+}
+
+.chat-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--hover-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.chat-code-lang {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-copy-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+/* Copied feedback must be visible, not just a label swap. */
+.chat-copy-btn.copied {
+  color: var(--success-color);
+  border-color: color-mix(in srgb, var(--success-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--success-color) 10%, transparent);
+}
+
+.chat-code-card pre,
+.chat-code-pre {
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-primary) !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.chat-code-card code,
+.chat-code-pre code,
+.chat-code-card .hljs,
+.chat-code-pre .hljs {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: inherit;
+  color: inherit;
+  display: block;
+}
+
+/* Syntax Highlighting matching themes.css variables */
+.chat-code-pre .hljs-keyword,
+.chat-code-pre .hljs-selector-tag,
+.chat-code-pre .hljs-built_in,
+.chat-code-pre .hljs-name {
+  color: var(--syntax-keyword, #c678dd);
+  font-weight: 600;
+}
+
+.chat-code-pre .hljs-string,
+.chat-code-pre .hljs-title,
+.chat-code-pre .hljs-section,
+.chat-code-pre .hljs-attribute,
+.chat-code-pre .hljs-literal,
+.chat-code-pre .hljs-template-tag,
+.chat-code-pre .hljs-template-variable {
+  color: var(--syntax-string, #98c379);
+}
+
+.chat-code-pre .hljs-comment,
+.chat-code-pre .hljs-quote,
+.chat-code-pre .hljs-deletion {
+  color: var(--syntax-comment, #6b7280);
+  font-style: italic;
+}
+
+.chat-code-pre .hljs-number,
+.chat-code-pre .hljs-regexp,
+.chat-code-pre .hljs-link {
+  color: var(--syntax-number, #d19a66);
+}
+
+.chat-code-pre .hljs-function {
+  color: var(--syntax-function, #61afef);
+  font-weight: 600;
+}
+
+.chat-code-pre .hljs-variable,
+.chat-code-pre .hljs-punctuation {
+  color: var(--text-primary);
+}
+
+/* Markdown Table Styles */
+.chat-datatable-wrapper {
+  margin: 12px 0;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.chat-datatable-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.chat-datatable-table th {
+  padding: 8px 12px;
+  background: var(--table-header-bg, var(--hover-bg));
+  border-bottom: 2px solid var(--border-color);
+  color: var(--table-header-text, var(--text-primary));
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.chat-datatable-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.chat-datatable-table tr:hover td {
+  background: var(--table-row-hover, var(--hover-bg));
+}
+
+/* DataTables (open-source module) controls — inherited from the app theme */
+.chat-datatable-wrapper .dt-container {
+  color: var(--text-primary);
+}
+
+.chat-datatable-wrapper .dt-layout-row {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chat-datatable-wrapper .dt-search input,
+.chat-datatable-wrapper .dt-length select,
+.chat-datatable-wrapper .dt-input {
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.chat-datatable-wrapper .dt-search input:focus,
+.chat-datatable-wrapper .dt-length select:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+}
+
+.chat-datatable-wrapper .dt-paging .dt-paging-button {
+  background: var(--button-secondary-bg, var(--input-bg));
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.chat-datatable-wrapper .dt-paging .dt-paging-button.current,
+.chat-datatable-wrapper .dt-paging .dt-paging-button.current:hover {
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.chat-datatable-wrapper .dt-paging .dt-paging-button:hover {
+  border-color: var(--input-focus-border);
+}

@@ -1,0 +1,48 @@
+.aa-think {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* The bubble is a flex column with `align-items: flex-start`, so without an
+     explicit width this line sizes to its nowrap text and runs past the
+     transcript column. Pin it to the column so it ends where the composer does. */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 24px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  user-select: none;
+}
+
+.aa-think-label {
+  flex: 0 0 auto;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--info-color) 78%, var(--text-muted));
+}
+
+.aa-think-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0%, black 16%, black 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 16%, black 100%);
+}
+
+.aa-think-text {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+  transition: transform 180ms ease-out;
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aa-think-text {
+    transition: none;
+  }
+}

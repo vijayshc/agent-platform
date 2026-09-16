@@ -1,0 +1,284 @@
+/* Waterfall tree, rows, kind badges and Gantt bars.
+ * Split out of traceExplorer.css to keep each stylesheet small. */
+
+/* ----------------------------------------------------------- waterfall */
+
+/* Compound selector on purpose: ``.aa-run-split`` also sets
+   grid-template-columns and wins a same-specificity tie depending on bundle
+   order, which silently pinned the waterfall to 360px and truncated every
+   span name. */
+.aa-run-split.aa-tx-split {
+  grid-template-columns: minmax(340px, 46%) minmax(0, 1fr);
+}
+
+.aa-tx-tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.aa-tx-axis {
+  flex-shrink: 0;
+  padding: 5px 14px 3px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--light-bg);
+}
+
+.aa-tx-axis-scale {
+  position: relative;
+  height: 14px;
+}
+
+.aa-tx-axis-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.aa-tx-axis-tick:first-child {
+  transform: none;
+}
+
+.aa-tx-axis-tick:last-child {
+  transform: translateX(-100%);
+}
+
+.aa-tx-axis-rule {
+  position: absolute;
+  top: 13px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.aa-tx-tree-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 6px 14px;
+}
+
+.aa-tx-caret {
+  appearance: none;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.aa-tx-caret:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+.aa-tx-caret-spacer {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.aa-tx-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--hover-bg);
+}
+
+.aa-tx-badge.k-agent {
+  color: var(--primary-color, var(--info-color));
+  background: color-mix(in srgb, var(--primary-color, var(--info-color)) 16%, transparent);
+}
+
+.aa-tx-badge.k-chain {
+  color: color-mix(in srgb, var(--text-secondary) 80%, var(--text-primary));
+  background: var(--hover-bg);
+}
+
+.aa-tx-badge.k-llm {
+  color: var(--info-color);
+  background: color-mix(in srgb, var(--info-color) 16%, transparent);
+}
+
+.aa-tx-badge.k-tool {
+  color: var(--success-color);
+  background: color-mix(in srgb, var(--success-color) 16%, transparent);
+}
+
+.aa-tx-badge.k-retriever {
+  color: var(--warning-color);
+  background: color-mix(in srgb, var(--warning-color) 18%, transparent);
+}
+
+.aa-tx-badge.k-embedding {
+  color: color-mix(in srgb, var(--info-color) 62%, var(--text-primary));
+  background: color-mix(in srgb, var(--info-color) 10%, transparent);
+}
+
+.aa-tx-badge.k-reranker {
+  color: color-mix(in srgb, var(--primary-color, var(--warning-color)) 68%, var(--text-primary));
+  background: color-mix(in srgb, var(--primary-color, var(--warning-color)) 12%, transparent);
+}
+
+.aa-tx-badge.k-guardrail {
+  color: var(--danger-color);
+  background: color-mix(in srgb, var(--danger-color) 14%, transparent);
+}
+
+.aa-tx-badge.k-evaluator {
+  color: color-mix(in srgb, var(--warning-color) 62%, var(--info-color));
+  background: color-mix(in srgb, var(--warning-color) 12%, transparent);
+}
+
+.aa-tx-row {
+  position: relative;
+}
+
+.aa-tx-row:focus-visible {
+  outline: 2px solid var(--info-color);
+  outline-offset: -2px;
+}
+
+.aa-tx-row[data-error="true"] {
+  background: color-mix(in srgb, var(--danger-color) 9%, transparent);
+}
+
+.aa-tx-row[data-error="true"] .aa-span-label {
+  color: var(--danger-color);
+}
+
+.aa-tx-row[data-error="true"] .aa-bar {
+  background: var(--danger-color);
+}
+
+.aa-tx-row .aa-bar.k-agent { background: var(--primary-color, var(--info-color)); }
+.aa-tx-row .aa-bar.k-chain { background: color-mix(in srgb, var(--text-secondary) 80%, var(--text-primary)); }
+.aa-tx-row .aa-bar.k-llm { background: var(--info-color); }
+.aa-tx-row .aa-bar.k-tool { background: var(--success-color); }
+.aa-tx-row .aa-bar.k-retriever { background: var(--warning-color); }
+.aa-tx-row .aa-bar.k-embedding { background: color-mix(in srgb, var(--info-color) 62%, var(--text-primary)); }
+.aa-tx-row .aa-bar.k-reranker { background: color-mix(in srgb, var(--primary-color, var(--warning-color)) 68%, var(--text-primary)); }
+.aa-tx-row .aa-bar.k-guardrail { background: var(--danger-color); }
+.aa-tx-row .aa-bar.k-evaluator { background: color-mix(in srgb, var(--warning-color) 62%, var(--info-color)); }
+
+.aa-tx-row-meta {
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 32%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* The span name is the row's identity: it wins the space over the secondary
+   descriptor, which truncates first (it is also repeated in the tooltip). */
+.aa-tx-row .aa-span-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Bars are the primary time signal; a 2px hairline is unreadable at a glance. */
+.aa-tx-tree .aa-bar-track {
+  height: 5px;
+  border-radius: 999px;
+}
+
+.aa-tx-tree .aa-bar {
+  height: 5px;
+  border-radius: 999px;
+}
+
+.aa-tx-tok {
+  font-size: 9px;
+  font-weight: 650;
+  padding: 1px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--hover-bg);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.aa-tx-tree-empty {
+  padding: 18px 12px;
+  text-align: center;
+}
+
+
+/* ------------------------------------------------- polish (review pass 1) */
+
+/* 8px bars read at a glance; 2px hairlines did not. */
+.aa-tx-tree .aa-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  /* Faint vertical gridlines every 25% so a bar can be read against the axis. */
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--border-color) 80%, transparent) 0 1px,
+    transparent 1px 25%
+  );
+}
+
+.aa-tx-tree .aa-bar {
+  height: 8px;
+  border-radius: 999px;
+}
+
+/* Depth guides: one faint vertical line per ancestor level. */
+.aa-tx-indent {
+  flex-shrink: 0;
+  align-self: stretch;
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--border-color) 90%, transparent) 0 1px,
+    transparent 1px 18px
+  );
+}
+
+.aa-tx-offset {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Carets were a 14px glyph: give them a real hit area (double-click also
+   toggles a subtree, which is the faster path for deep traces). */
+.aa-tx-caret {
+  padding: 2px 4px;
+  margin: -2px -2px;
+  border-radius: 4px;
+}
+
+.aa-tx-caret:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}

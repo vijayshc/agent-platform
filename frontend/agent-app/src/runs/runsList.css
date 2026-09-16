@@ -1,0 +1,107 @@
+/* Runs list: header, filter controls, table affordances.
+ *
+ * Purposefully narrow columns: the list is the triage entry point, so Started
+ * and Duration must be visible without horizontal scrolling on a 1024px laptop.
+ * Agent is capped (with a title tooltip) and Task is the only flexible column.
+ */
+
+.aa-runs-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.aa-runs-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aa-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.aa-filter-label {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Native selects rendered as inert boxes: draw a caret so they read as pickers. */
+.aa-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) calc(50% + 1px),
+    calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.aa-select:hover {
+  border-color: var(--text-muted);
+}
+
+/* A trace exists for this run; the row click opens it. */
+.aa-run-trace-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--info-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--info-color) 22%, transparent);
+}
+
+.aa-run-row-error td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger-color);
+}
+
+.aa-col-num {
+  text-align: right;
+}
+
+.aa-runs-notice {
+  padding: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.aa-runs-notice-error {
+  color: var(--danger-color);
+}
+
+/* Fixed layout: with `auto`, the Task column grew to ~2500px chasing its text
+   and pushed Started/Duration off-screen even on a 1440 viewport.  With fixed
+   widths and Task taking the remainder, the whole table fits a 1024 laptop. */
+/* Must out-specify `.aa-admin-dt .aa-table.aa-dt` (3 classes), which forces
+   `table-layout: auto; width: max-content` and let Task grow to ~2500px. */
+.aa-admin-dt .aa-table.aa-dt.aa-runs-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+
+.aa-admin-dt .aa-table.aa-dt.aa-runs-table th,
+.aa-admin-dt .aa-table.aa-dt.aa-runs-table td {
+  overflow: hidden;
+}
+
+.aa-admin-dt .aa-table.aa-dt.aa-runs-table .aa-col-task > div {
+  max-width: 100%;
+}

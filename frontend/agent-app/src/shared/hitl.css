@@ -1,0 +1,135 @@
+/* Approval card styling for shared/HitlCard.tsx.
+ *
+ * The card renders LangChain's HumanInTheLoopMiddleware interrupt payload
+ * (`action_requests` / `review_configs`). Every value comes from the app theme
+ * tokens in static/css/themes.css, so the card follows light/dark themes the
+ * same way the surrounding chat does.
+ */
+
+.aa-hitl-card {
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(100%, 1100px);
+  color: var(--text-primary);
+}
+
+.aa-hitl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aa-hitl-badge {
+  border: 1px solid var(--warning-color);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--warning-color);
+}
+
+.aa-hitl-plan {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.aa-hitl-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--input-bg);
+  padding: 10px;
+}
+
+.aa-hitl-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.aa-hitl-tool {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.aa-hitl-allowed {
+  color: var(--text-muted);
+}
+
+.aa-hitl-args {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aa-hitl-editor,
+.aa-hitl-reject {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aa-hitl-reject input {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.aa-hitl-reject input:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.aa-hitl-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aa-hitl-actions .aa-btn.primary {
+  border-color: transparent;
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.aa-hitl-actions .aa-btn.primary:hover {
+  background: var(--button-primary-hover);
+}
+
+.aa-hitl-actions .aa-btn.danger {
+  border-color: var(--danger-color);
+  background: transparent;
+  color: var(--danger-color);
+}
+
+.aa-hitl-actions .aa-btn.danger:hover {
+  background: var(--danger-color);
+  color: var(--button-primary-text);
+}

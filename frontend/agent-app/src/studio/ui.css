@@ -1,0 +1,526 @@
+/* Shared UI atoms: badges, chips, pickers, menus, dialogs and tabs.
+   Tokens come from static/css/themes.css — never hardcode a colour. */
+
+/* ------------------------------------------------------------------- badges */
+
+.as-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  padding: 2px 9px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  /* Body-copy contrast in both themes, not the muted token. */
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.as-badge-ok {
+  color: var(--success-color);
+  border-color: color-mix(in srgb, var(--success-color) 45%, transparent);
+}
+
+.as-badge-warn {
+  color: var(--warning-color);
+  border-color: color-mix(in srgb, var(--warning-color) 45%, transparent);
+}
+
+.as-badge-err {
+  color: var(--danger-color);
+  border-color: color-mix(in srgb, var(--danger-color) 45%, transparent);
+}
+
+.as-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 2px 9px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.as-chip-ok {
+  color: var(--success-color);
+  border-color: color-mix(in srgb, var(--success-color) 40%, transparent);
+}
+
+.as-chip-mw {
+  color: var(--info-color);
+  border-color: color-mix(in srgb, var(--info-color) 40%, transparent);
+  font-family: Consolas, Monaco, monospace;
+}
+
+.as-chip-removable button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Small glyph, but a real hit target inside the chip. */
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.as-chip-removable button:hover {
+  background: color-mix(in srgb, var(--danger-color) 18%, transparent);
+  color: var(--danger-color);
+}
+
+.as-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* --------------------------------------------------------- focus visibility */
+
+.as-tab:focus-visible,
+.as-agent-item:focus-visible,
+.as-pal-item:focus-visible,
+.as-selected-chip button:focus-visible,
+.as-hitl-toggle:focus-visible,
+.as-check-row input:focus-visible,
+.as-tool-pick input:focus-visible,
+.as-menu-item:focus-visible,
+.as-skill-item:focus-visible,
+.as-link:focus-visible {
+  outline: 2px solid var(--info-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* -------------------------------------------------------------------- notes */
+
+.as-note {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--info-color);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--info-color) 7%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------------ notices */
+
+.as-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--warning-color) 45%, transparent);
+  background: color-mix(in srgb, var(--warning-color) 12%, var(--card-bg));
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.as-notice-info {
+  border-bottom-color: color-mix(in srgb, var(--info-color) 45%, transparent);
+  background: color-mix(in srgb, var(--info-color) 10%, var(--card-bg));
+}
+
+.as-notice-info > svg {
+  color: var(--info-color);
+}
+
+.as-notice > svg {
+  color: var(--warning-color);
+  flex-shrink: 0;
+}
+
+.as-notice span {
+  flex: 1;
+}
+
+.as-notice-close {
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------------ pickers */
+
+.as-picker {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: var(--input-bg);
+}
+
+.as-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.as-picker-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.as-picker-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.as-picker-item:hover {
+  background: var(--hover-bg);
+}
+
+.as-picker-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.as-picker-label {
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.as-picker-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* ------------------------------------------------------------------ menus */
+
+.as-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 168px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--card-shadow-hover);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.as-overflow {
+  position: relative;
+}
+
+.as-menu-right {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+}
+
+.as-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.as-menu-item:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.as-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.as-menu-sep {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 2px;
+}
+
+.as-menu-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  padding: 6px 8px 2px;
+}
+
+.as-menu-check {
+  display: inline-flex;
+  width: 12px;
+  color: var(--success-color);
+}
+
+.as-menu-danger {
+  color: var(--danger-color);
+}
+
+/* ---------------------------------------------------------------- dialogs */
+
+.as-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 24px;
+}
+
+.as-dialog {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow-hover);
+  width: min(560px, 100%);
+  max-height: min(84vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.as-dialog-wide {
+  width: min(900px, 100%);
+}
+
+/* API integration is a two-column reference: endpoint index on the left, the
+ * runnable samples on the right. It earns the extra width so neither column
+ * has to wrap, and the code panel gets the height a full program needs. */
+.as-dialog-api {
+  width: min(1220px, 100%);
+  max-height: min(92vh, 960px);
+}
+
+.as-api-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .as-api-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.as-api-info,
+.as-api-code {
+  min-width: 0;
+}
+
+.as-api-grid .as-list-sub {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.as-api-method {
+  margin-right: 6px;
+  color: var(--text-muted);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.as-api-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.as-api-note b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.as-dialog-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.as-dialog-title {
+  font-size: 15px;
+  font-weight: 650;
+  flex: 1;
+}
+
+.as-dialog-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.as-dialog-body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.as-dialog-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.as-dialog-close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.as-dialog-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.as-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.as-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.as-list-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.as-list-title {
+  font-size: 13px;
+}
+
+.as-list-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.as-list-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.as-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.as-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* -------------------------------------------------------------------- tabs */
+
+.as-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 10px;
+}
+
+.as-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 6px 10px 8px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.as-tab:hover {
+  color: var(--text-primary);
+}
+
+.as-tab.has-errors {
+  color: var(--danger-color);
+}
+
+.as-tab.has-warnings {
+  color: var(--warning-color);
+}
+
+.as-tab-count {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: color-mix(in srgb, var(--danger-color) 18%, transparent);
+  color: var(--danger-color);
+}
+
+.as-tab-count-warn {
+  background: color-mix(in srgb, var(--warning-color) 22%, transparent);
+  color: var(--warning-color);
+}
+
+.as-tab.is-active {
+  color: var(--text-primary);
+  border-bottom-color: var(--info-color);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ narrow width */
+
+@media (max-width: 1200px) {
+  .as-rail {
+    width: 220px;
+  }
+
+  .as-inspector {
+    width: 300px;
+  }
+}

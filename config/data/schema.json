@@ -1,0 +1,249 @@
+{
+  "workspaces": [
+    {
+      "name": "dfd",
+      "description": "",
+      "tables": [
+        {
+          "name": "customers",
+          "description": "Customer information and profiles",
+          "columns": [
+            {
+              "datatype": "INTEGER",
+              "description": "Unique customer identifier",
+              "is_primary_key": true,
+              "name": "customer_id"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's first name",
+              "is_primary_key": false,
+              "name": "first_name"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's last name",
+              "is_primary_key": false,
+              "name": "last_name"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's email address (unique)",
+              "is_primary_key": false,
+              "name": "email"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's phone number",
+              "is_primary_key": false,
+              "name": "phone"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's street address",
+              "is_primary_key": false,
+              "name": "address"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's city",
+              "is_primary_key": false,
+              "name": "city"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's state/province",
+              "is_primary_key": false,
+              "name": "state"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's country",
+              "is_primary_key": false,
+              "name": "country"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Customer's postal/zip code",
+              "is_primary_key": false,
+              "name": "postal_code"
+            },
+            {
+              "datatype": "TEXT",
+              "description": "Date when customer registered",
+              "is_primary_key": false,
+              "name": "registration_date"
+            }
+          ]
+        },
+        {
+          "name": "products",
+          "description": "Product catalog and inventory",
+          "columns": [
+            {
+              "name": "product_id",
+              "description": "Unique product identifier",
+              "datatype": "INTEGER",
+              "is_primary_key": true
+            },
+            {
+              "name": "name",
+              "description": "Product name",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "description",
+              "description": "Product description",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "category",
+              "description": "Product category",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "price",
+              "description": "Product selling price",
+              "datatype": "REAL",
+              "is_primary_key": false
+            },
+            {
+              "name": "cost",
+              "description": "Product cost price",
+              "datatype": "REAL",
+              "is_primary_key": false
+            },
+            {
+              "name": "stock_quantity",
+              "description": "Available stock quantity",
+              "datatype": "INTEGER",
+              "is_primary_key": false
+            }
+          ]
+        },
+        {
+          "name": "orders",
+          "description": "Customer orders and transactions",
+          "columns": [
+            {
+              "name": "order_id",
+              "description": "Unique order identifier",
+              "datatype": "INTEGER",
+              "is_primary_key": true
+            },
+            {
+              "name": "customer_id",
+              "description": "Reference to customer who placed the order",
+              "datatype": "INTEGER",
+              "is_primary_key": false
+            },
+            {
+              "name": "order_date",
+              "description": "Date when order was placed",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "status",
+              "description": "Order status (pending, shipped, completed, etc.)",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "total_amount",
+              "description": "Total order amount",
+              "datatype": "REAL",
+              "is_primary_key": false
+            }
+          ]
+        },
+        {
+          "name": "order_items",
+          "description": "Individual items within each order",
+          "columns": [
+            {
+              "name": "item_id",
+              "description": "Unique order item identifier",
+              "datatype": "INTEGER",
+              "is_primary_key": true
+            },
+            {
+              "name": "order_id",
+              "description": "Reference to parent order",
+              "datatype": "INTEGER",
+              "is_primary_key": false
+            },
+            {
+              "name": "product_id",
+              "description": "Reference to purchased product",
+              "datatype": "INTEGER",
+              "is_primary_key": false
+            },
+            {
+              "name": "quantity",
+              "description": "Quantity of product ordered",
+              "datatype": "INTEGER",
+              "is_primary_key": false
+            },
+            {
+              "name": "price",
+              "description": "Price per unit at time of purchase",
+              "datatype": "REAL",
+              "is_primary_key": false
+            }
+          ]
+        },
+        {
+          "name": "sales_metrics",
+          "description": "Aggregated sales data by channel",
+          "columns": [
+            {
+              "name": "id",
+              "description": "Unique metric identifier",
+              "datatype": "INTEGER",
+              "is_primary_key": true
+            },
+            {
+              "name": "date",
+              "description": "Date period for metrics",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "channel",
+              "description": "Sales channel (Online, Retail)",
+              "datatype": "TEXT",
+              "is_primary_key": false
+            },
+            {
+              "name": "revenue",
+              "description": "Total revenue for the period",
+              "datatype": "REAL",
+              "is_primary_key": false
+            },
+            {
+              "name": "cost",
+              "description": "Total cost for the period",
+              "datatype": "REAL",
+              "is_primary_key": false
+            },
+            {
+              "name": "profit",
+              "description": "Total profit for the period",
+              "datatype": "REAL",
+              "is_primary_key": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "description": "",
+      "tables": []
+    }
+  ]
+}

@@ -1,0 +1,437 @@
+/* Agent Studio shell: layout, topbar, controls and forms.
+   Atoms live in ui.css, each surface owns its own file.
+   Tokens come from static/css/themes.css — never hardcode a colour. */
+@import "./ui.css";
+
+.as-studio {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--light-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.as-studio h1,
+.as-studio h2,
+.as-studio h3,
+.as-studio h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* ------------------------------------------------------------------ topbar */
+
+.as-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+  flex-shrink: 0;
+  min-height: 52px;
+  /* Status messages must stay readable at 1280px: the bar wraps instead of
+     squeezing the name field or truncating the feedback. */
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.as-topbar-left,
+.as-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.as-topbar-left {
+  flex: 1;
+}
+
+/* Two classes so this beats the generic `.as-input { width: 100% }` further down. */
+.as-input.as-title-input {
+  /* Wide enough for a real flow name at 1280px; the title attribute carries the
+     full value when a name is longer than the field. */
+  flex: 0 0 auto;
+  width: clamp(200px, 22vw, 380px);
+  min-width: 180px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.as-slug {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.as-status {
+  font-size: 12px;
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status text is a button when it can take the author somewhere (Checks). */
+button.as-status {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.as-status:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-color);
+}
+
+.as-status-alert {
+  color: var(--danger-color);
+}
+
+.as-status-warn {
+  color: var(--warning-color);
+}
+
+.as-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.as-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.as-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--light-bg);
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.as-btn {
+  appearance: none;
+  border: 1px solid var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: background var(--transition-speed), border-color var(--transition-speed), color var(--transition-speed);
+}
+
+.as-btn:hover:not(:disabled) {
+  background: var(--button-secondary-hover);
+}
+
+.as-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.as-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.as-btn-primary {
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border-color: transparent;
+}
+
+.as-btn-primary:hover:not(:disabled) {
+  background: var(--button-primary-hover);
+}
+
+.as-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.as-btn-ghost:hover:not(:disabled) {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.as-btn-danger {
+  color: var(--danger-color);
+  border-color: color-mix(in srgb, var(--danger-color) 40%, transparent);
+  background: transparent;
+}
+
+.as-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+}
+
+.as-btn-sm {
+  /* Keeps a >=28px hit target even with compact padding. */
+  padding: 5px 9px;
+  min-height: 28px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.as-btn-icon {
+  padding: 6px;
+  width: 32px;
+  height: 32px;
+}
+
+.as-btn-sm.as-btn-icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* -------------------------------------------------------------------- forms */
+
+.as-input,
+.as-select,
+.as-textarea {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.as-input:focus,
+.as-select:focus,
+.as-textarea:focus {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.as-input::placeholder,
+.as-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.as-textarea {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.5;
+}
+
+.as-select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.as-select-sm {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.as-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.as-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.as-help {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.as-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0 12px;
+}
+
+.as-inline-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.as-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.as-inline-field .as-select {
+  width: auto;
+  min-width: 140px;
+}
+
+.as-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.as-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.as-check-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.as-check-row:hover {
+  background: var(--hover-bg);
+}
+
+.as-check-name {
+  font-size: 13px;
+}
+
+.as-check-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-muted {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.as-error {
+  color: var(--danger-color);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.as-warning {
+  color: var(--warning-color);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.as-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hover-bg) 40%, transparent);
+}
+
+.as-link {
+  color: var(--info-color);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.as-link:hover {
+  text-decoration: underline;
+}
+
+.as-spin {
+  animation: as-spin 1s linear infinite;
+}
+
+.as-flip {
+  transform: rotate(180deg);
+}
+
+@keyframes as-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Small laptops: two toolbar rows, not four, with an inline ellipsised status. */
+@media (max-width: 1180px) {
+  .as-topbar {
+    padding: 6px 10px;
+    row-gap: 4px;
+  }
+
+  .as-topbar-right {
+    gap: 4px;
+  }
+
+  .as-topbar-right .as-btn {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .as-title-input {
+    width: clamp(150px, 22vw, 260px);
+    min-width: 140px;
+  }
+
+  .as-status {
+    flex: 1 1 0;
+    min-width: 120px;
+    font-size: 11px;
+  }
+
+  .as-slug,
+  .as-topbar-left .as-muted:not(.as-status) {
+    display: none;
+  }
+}

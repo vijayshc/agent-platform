@@ -1,0 +1,371 @@
+/* Span inspector: headers, tabs, payloads, attributes and error callout.
+ * Split out of traceExplorer.css to keep each stylesheet small. */
+
+/* ------------------------------------------------------- detail pane */
+
+.aa-tx-detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -16px -20px 12px;
+  padding: 14px 20px 0;
+  background: var(--light-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.aa-tx-detail-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.aa-tx-detail-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.aa-tx-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.aa-tx-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-bottom: 8px;
+}
+
+.aa-tx-tab {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.aa-tx-tab.active {
+  color: var(--text-primary);
+  border-color: var(--info-color);
+  background: var(--hover-bg);
+}
+
+.aa-tx-error-callout {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--danger-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+}
+
+.aa-tx-error-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger-color);
+  margin-bottom: 4px;
+}
+
+.aa-tx-error-body {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aa-tx-muted-block {
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.aa-tx-payload-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.aa-tx-copy-btn {
+  appearance: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 1px 7px;
+  cursor: pointer;
+}
+
+.aa-tx-copy-btn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+.aa-tx-payload {
+  max-height: min(46vh, 420px);
+  overflow: auto;
+}
+
+.aa-tx-toolcall {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.aa-tx-toolcall-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--primary-color, var(--info-color));
+  margin-bottom: 4px;
+}
+
+.aa-tx-toolcall pre {
+  margin: 0;
+  max-height: 260px;
+}
+
+.aa-tx-reasoning {
+  margin: 6px 0 8px;
+  padding: 4px 0 4px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--info-color) 55%, var(--border-color));
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.aa-tx-reasoning summary {
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.aa-tx-longval {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.aa-tx-longval.expanded {
+  max-height: none;
+}
+
+.aa-tx-kv-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--info-color);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 2px;
+}
+
+
+/* ------------------------------------------------ attributes & raw JSON */
+
+.aa-tx-attr-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.aa-tx-attr-bar .aa-search {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.aa-tx-attr-group {
+  margin-bottom: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.aa-tx-attr-group > summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.aa-tx-attr-group[open] > summary {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.aa-tx-attr-group .aa-kv {
+  padding: 8px 10px;
+}
+
+.aa-tx-attr-val {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.aa-tx-attr-val > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.aa-tx-attr-copy {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  font-size: 10px;
+}
+
+.aa-tx-payload-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.aa-tx-json {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--hover-bg);
+}
+
+.aa-tx-json-gutter {
+  flex-shrink: 0;
+  padding: 8px 6px;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--border-color) 35%, transparent);
+  user-select: none;
+}
+
+.aa-tx-json-body {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  color: var(--text-secondary);
+}
+
+/* A system prompt is reference material; opening it must not bury the work
+   three screens down the way an uncapped markdown block did. */
+.aa-turn-system .aa-turn-body {
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--card-bg);
+}
+
+/* ------------------------------------------ collapsible messages/sections */
+
+.aa-tx-msg-section {
+  margin-bottom: 12px;
+}
+
+.aa-tx-msg-summary,
+.aa-tx-turn-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.aa-tx-msg-summary::-webkit-details-marker,
+.aa-tx-turn-summary::-webkit-details-marker {
+  display: none;
+}
+
+.aa-tx-msg-summary::before,
+.aa-tx-turn-summary::before {
+  content: "▸";
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 120ms ease;
+}
+
+.aa-tx-msg-section[open] > .aa-tx-msg-summary::before,
+.aa-turn[open] > .aa-tx-turn-summary::before {
+  transform: rotate(90deg);
+}
+
+.aa-tx-msg-summary {
+  padding: 2px 0 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.aa-tx-msg-summary:hover,
+.aa-tx-turn-summary:hover {
+  color: var(--text-primary);
+}
+
+.aa-tx-msg-count {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.aa-tx-msg-body {
+  padding-top: 8px;
+}
+
+.aa-tx-turn {
+  padding: 6px 10px;
+}
+
+.aa-tx-turn .aa-turn-role {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.aa-tx-turn-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.aa-tx-turn-body {
+  margin-top: 8px;
+}
+
+.aa-tx-turn .aa-turn-body {
+  margin-top: 6px;
+}
