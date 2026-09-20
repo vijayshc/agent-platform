@@ -84,6 +84,38 @@ def create_conversation():
     return jsonify(conv), 201
 
 
+def _attach_tool_data(conv: dict, messages: list[dict]) -> list[dict]:
+    """Rehydrate each turn's persisted tool-data descriptors from the archive.
+
+    A message stores only descriptors (no rows), so a conversation's rows live
+    in exactly one place -- its tool-data archive. Reading re-resolves them for
+    the client; a reference whose archive is gone is dropped, which the chat
+    renders as "no longer available" rather than an empty chart.
+    """
+    public_id = conv.get("public_id")
+    if not public_id:
+        return messages
+    from src.agent_platform.runtime.tool_data import (
+        conversation_scope,
+        payloads_from_descriptors,
+    )
+
+    scope = conversation_scope(str(public_id))
+    for message in messages:
+        meta = message.get("meta")
+        if not isinstance(meta, dict):
+            continue
+        descriptors = meta.get("tool_data")
+        if not isinstance(descriptors, list) or not descriptors:
+            continue
+        payloads = payloads_from_descriptors(descriptors, scope)
+        if payloads:
+            meta["tool_data"] = payloads
+        else:
+            meta.pop("tool_data", None)
+    return messages
+
+
 @conversation_bp.get("/conversations/<conversation_id>")
 @api_auth_required("runs:read")
 def get_conversation(conversation_id: str):
@@ -92,7 +124,7 @@ def get_conversation(conversation_id: str):
         return jsonify({"error": "conversation not found"}), 404
     if not can_access_conversation(conv):
         return conversation_denied()
-    messages = ConversationStore.list_messages(int(conv["id"]))
+    messages = _attach_tool_data(conv, ConversationStore.list_messages(int(conv["id"])))
     conv_data = dict(conv)
     conv_data["messages"] = messages
     return jsonify(conv_data)
@@ -107,6 +139,16 @@ def delete_conversation(conversation_id: str):
     if not can_access_conversation(conv):
         return conversation_denied()
     ConversationStore.delete(int(conv["id"]))
+    # A conversation owns its cached tool tables, so deleting it deletes them:
+    # the Parquet archive next to the conversation's checkpoint would otherwise
+    # outlive every reference to it.
+    if conv.get("public_id"):
+        from src.agent_platform.runtime.tool_data import (
+            TOOL_DATA_STORE,
+            conversation_scope,
+        )
+
+        TOOL_DATA_STORE.clear(conversation_scope(str(conv["public_id"])))
     return jsonify({"success": True, "id": conv["id"]})
 
 
@@ -118,7 +160,7 @@ def get_conversation_messages(conversation_id: str):
         return jsonify({"error": "conversation not found"}), 404
     if not can_access_conversation(conv):
         return conversation_denied()
-    messages = ConversationStore.list_messages(int(conv["id"]))
+    messages = _attach_tool_data(conv, ConversationStore.list_messages(int(conv["id"])))
     return jsonify({"messages": messages})
 
 

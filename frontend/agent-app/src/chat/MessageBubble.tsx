@@ -226,6 +226,7 @@ export function MessageBubble({
             content={msg.content}
             prevContent={msg.prevContent}
             streaming={msg.streaming}
+            toolData={msg.toolData}
             onSettle={() => onSettle?.(msg.id)}
           />
         ) : (

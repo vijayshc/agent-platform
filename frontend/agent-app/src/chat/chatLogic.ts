@@ -54,6 +54,7 @@ export function hydrateMessages(full: Conversation, defaultAgentName?: string): 
       events.unshift({ type: "reasoning", content: reasoning, done: true });
     }
     const attachments = m.meta?.attachments || [];
+    const toolData = Array.isArray(m.meta?.tool_data) ? m.meta.tool_data : undefined;
     return {
       id: String(m.id),
       role: m.role === "user" ? "user" : "assistant",
@@ -63,6 +64,7 @@ export function hydrateMessages(full: Conversation, defaultAgentName?: string): 
       runPublicId: m.run_public_id || m.meta?.public_id,
       events,
       attachments: attachments.length ? attachments : undefined,
+      toolData,
       hitlResolved: !waiting,
     };
   });
@@ -190,6 +192,9 @@ export function applyEvent(msg: ChatMessage, ev: SseEvent): ChatMessage {
       // paths removed), whereas the token stream can split a path across chunks
       // so client-side accumulation may still contain one.
       if (ev.reply) next.content = String(ev.reply);
+      // Charts/tables in the reply are resolved against the cached tables the
+      // server sends with the final event.
+      if (Array.isArray(ev.tool_data)) next.toolData = ev.tool_data;
       if (hasPrev && next.content) {
         next.swapping = true;
       } else if (hasPrev && !next.content) {

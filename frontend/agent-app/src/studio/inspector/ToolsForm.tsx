@@ -11,8 +11,9 @@ import { AlertTriangle, ChevronDown, RefreshCw, ShieldCheck, X } from "lucide-re
 import { mcpServerTools } from "../api";
 import type { McpToolDetail, StudioMcpServer } from "../../types";
 import { functionToolOptions } from "../model/catalog";
-import type { McpBinding, NodeData, StudioCatalog } from "../model/types";
+import type { McpBinding, NodeData, StudioCatalog, ToolDataSetting } from "../model/types";
 import { Field, Section, TagsInput, Toggle } from "./Fields";
+import { ToolDataButton, ToolDataPanel, toolDataSummary } from "./ToolDataSettings";
 
 interface ToolListState {
   tools: string[];
@@ -27,6 +28,19 @@ function needsApproval(binding: McpBinding | undefined, tool: string, detail?: M
   if ((binding.approval ?? []).includes(tool)) return true;
   const mode = (detail as { approval_mode?: string } | undefined)?.approval_mode;
   return mode === "always_require" || mode === "approval";
+}
+
+/** A binding identifies its server by id when the canvas authored it and by
+ *  name when it came from a seeded definition, so match on either. Without
+ *  this a name-only binding shows no tool list and its settings are unreachable. */
+function bindingMatches(binding: McpBinding, server: StudioMcpServer): boolean {
+  if (binding.serverId != null && server.id != null && binding.serverId === server.id) return true;
+  return Boolean(binding.serverName) && binding.serverName === server.name;
+}
+
+/** A stable identity for a binding regardless of how its server is referenced. */
+function bindingKey(binding: McpBinding): string {
+  return binding.serverId != null ? `id:${binding.serverId}` : `name:${binding.serverName}`;
 }
 
 export function ToolsForm({
@@ -47,10 +61,17 @@ export function ToolsForm({
   const bindings = data.mcpBindings ?? [];
   const [expanded, setExpanded] = useState<number | null>(null);
   const [live, setLive] = useState<Record<number, ToolListState>>({});
+  // Which tool's data panel is open, keyed `<serverId>:<tool>`.
+  const [dataOpen, setDataOpen] = useState<string | null>(null);
 
   const boundIds = useMemo(
-    () => new Set(bindings.map((b) => b.serverId).filter((id): id is number => id != null)),
-    [bindings],
+    () =>
+      new Set(
+        servers
+          .filter((server) => bindings.some((binding) => bindingMatches(binding, server)))
+          .map((server) => server.id),
+      ),
+    [bindings, servers],
   );
   const selectedTools = useMemo(
     () =>
@@ -60,6 +81,7 @@ export function ToolsForm({
           tool,
           server: binding.serverName || String(binding.serverId ?? ""),
           hitl: (binding.approval ?? []).includes(tool),
+          dataNote: toolDataSummary(binding.data?.[tool]),
         })),
       ),
     [bindings],
@@ -119,29 +141,46 @@ export function ToolsForm({
       if (!live[server.id]) void loadTools(server.id);
       return;
     }
-    setBindings(bindings.filter((b) => b.serverId !== server.id));
+    setBindings(bindings.filter((b) => !bindingMatches(b, server)));
   }
 
-  function patchBinding(serverId: number, patch: Partial<McpBinding>) {
-    setBindings(bindings.map((b) => (b.serverId === serverId ? { ...b, ...patch } : b)));
+  function patchBinding(key: string, patch: Partial<McpBinding>) {
+    setBindings(bindings.map((b) => (bindingKey(b) === key ? { ...b, ...patch } : b)));
   }
 
-  function toggleTool(serverId: number, tool: string, on: boolean) {
-    const binding = bindings.find((b) => b.serverId === serverId);
+  function toggleTool(key: string, tool: string, on: boolean) {
+    const binding = bindings.find((b) => bindingKey(b) === key);
     if (!binding) return;
     const tools = on ? [...binding.tools, tool] : binding.tools.filter((t) => t !== tool);
-    patchBinding(serverId, {
+    const nextData = { ...(binding.data ?? {}) };
+    if (!on) {
+      // Deselecting a tool also drops its approval and data settings.
+      delete nextData[tool];
+    }
+    patchBinding(key, {
       tools,
-      // Deselecting a tool also drops its approval requirement.
       approval: on ? binding.approval : binding.approval.filter((t) => t !== tool),
+      data: Object.keys(nextData).length ? nextData : undefined,
     });
   }
 
-  function toggleApproval(serverId: number, tool: string, on?: boolean) {
-    const binding = bindings.find((b) => b.serverId === serverId);
+  function setToolData(key: string, tool: string, next: ToolDataSetting | undefined) {
+    const binding = bindings.find((b) => bindingKey(b) === key);
+    if (!binding) return;
+    const nextData = { ...(binding.data ?? {}) };
+    // Keep a disabled setting (sample: false) so its numbers survive an
+    // off/on toggle; only an explicit clear removes it. Serialization still
+    // drops anything that is not enabled.
+    if (next) nextData[tool] = next;
+    else delete nextData[tool];
+    patchBinding(key, { data: Object.keys(nextData).length ? nextData : undefined });
+  }
+
+  function toggleApproval(key: string, tool: string, on?: boolean) {
+    const binding = bindings.find((b) => bindingKey(b) === key);
     if (!binding) return;
     const active = on ?? !binding.approval.includes(tool);
-    patchBinding(serverId, {
+    patchBinding(key, {
       approval: active ? [...new Set([...binding.approval, tool])] : binding.approval.filter((t) => t !== tool),
     });
   }
@@ -173,16 +212,18 @@ export function ToolsForm({
             key: `${entry.server}/${entry.tool}`,
             label: `${entry.server}/${entry.tool}`,
             hitl: entry.hitl,
+            note: entry.dataNote,
             testId: `selected-tool-${entry.server}-${entry.tool}`,
-            onRemove: () => toggleTool(entry.binding.serverId as number, entry.tool, false),
-            onToggleHitl: () => toggleApproval(entry.binding.serverId as number, entry.tool),
+            onRemove: () => toggleTool(bindingKey(entry.binding), entry.tool, false),
+            onToggleHitl: () => toggleApproval(bindingKey(entry.binding), entry.tool),
           }))}
         />
 
         {!servers.length ? <p className="as-empty">No MCP servers are configured on this deployment.</p> : null}
         <div className="as-tool-servers">
           {servers.map((server) => {
-            const binding = bindings.find((b) => b.serverId === server.id);
+            const binding = bindings.find((b) => bindingMatches(b, server));
+            const key = binding ? bindingKey(binding) : "";
             const state = live[server.id];
             const details = state ?? { tools: [], details: [], error: null, loading: false };
             const open = expanded === server.id;
@@ -234,41 +275,63 @@ export function ToolsForm({
                       const detail = details.details.find((d) => d.name === tool);
                       const selected = binding.tools.includes(tool);
                       const hitl = needsApproval(binding, tool, detail);
+                      const setting = binding.data?.[tool];
+                      const panelKey = `${server.id}:${tool}`;
+                      const dataPanelOpen = dataOpen === panelKey;
                       return (
-                        <div className={`as-tool-row${selected ? " is-selected" : ""}`} key={tool}>
-                          <label className="as-tool-pick" title={detail?.description ?? tool}>
-                            <input
-                              type="checkbox"
-                              id={`mcp-tool-${server.id}-${tool}`}
-                              name={`mcp-tool-${server.id}-${tool}`}
-                              data-testid={`mcp-tool-${tool}`}
-                              checked={selected}
-                              onChange={(event) => toggleTool(server.id, tool, event.target.checked)}
+                        <div className={`as-tool-item${selected ? " is-selected" : ""}`} key={tool}>
+                          <div className="as-tool-row">
+                            <label className="as-tool-pick" title={detail?.description ?? tool}>
+                              <input
+                                type="checkbox"
+                                id={`mcp-tool-${server.id}-${tool}`}
+                                name={`mcp-tool-${server.id}-${tool}`}
+                                data-testid={`mcp-tool-${tool}`}
+                                checked={selected}
+                                onChange={(event) => toggleTool(key, tool, event.target.checked)}
+                              />
+                              <span className="as-tool-name">{tool}</span>
+                              {detail?.description ? <span className="as-tool-desc">{detail.description}</span> : null}
+                            </label>
+                            {selected ? (
+                              <ToolDataButton
+                                active={Boolean(setting?.sample)}
+                                open={dataPanelOpen}
+                                summary={toolDataSummary(setting)}
+                                testId={`mcp-tool-data-${tool}`}
+                                onClick={() => setDataOpen(dataPanelOpen ? null : panelKey)}
+                              />
+                            ) : null}
+                            <button
+                              type="button"
+                              className={`as-hitl-toggle${hitl ? " is-on" : ""}`}
+                              aria-pressed={hitl}
+                              disabled={!selected}
+                              title={
+                                !selected
+                                  ? "Select the tool first"
+                                  : hitl
+                                    ? "Approval required before this tool runs — click to remove"
+                                    : "Require a human approval before this tool runs"
+                              }
+                              data-testid={`mcp-tool-hitl-${tool}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleApproval(key, tool);
+                              }}
+                            >
+                              <ShieldCheck size={12} /> HITL
+                            </button>
+                          </div>
+                          {selected && dataPanelOpen ? (
+                            <ToolDataPanel
+                              tool={tool}
+                              setting={setting}
+                              testId={`mcp-tool-data-panel-${tool}`}
+                              onChange={(next) => setToolData(key, tool, next)}
                             />
-                            <span className="as-tool-name">{tool}</span>
-                            {detail?.description ? <span className="as-tool-desc">{detail.description}</span> : null}
-                          </label>
-                          <button
-                            type="button"
-                            className={`as-hitl-toggle${hitl ? " is-on" : ""}`}
-                            aria-pressed={hitl}
-                            disabled={!selected}
-                            title={
-                              !selected
-                                ? "Select the tool first"
-                                : hitl
-                                  ? "Approval required before this tool runs — click to remove"
-                                  : "Require a human approval before this tool runs"
-                            }
-                            data-testid={`mcp-tool-hitl-${tool}`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              toggleApproval(server.id, tool);
-                            }}
-                          >
-                            <ShieldCheck size={12} /> HITL
-                          </button>
+                          ) : null}
                         </div>
                       );
                     })}
@@ -276,7 +339,7 @@ export function ToolsForm({
                       <button
                         type="button"
                         className="as-btn as-btn-ghost as-btn-sm"
-                        onClick={() => patchBinding(server.id, { tools: [...details.tools] })}
+                        onClick={() => patchBinding(key, { tools: [...details.tools] })}
                         disabled={!details.tools.length}
                       >
                         Select all
@@ -284,7 +347,7 @@ export function ToolsForm({
                       <button
                         type="button"
                         className="as-btn as-btn-ghost as-btn-sm"
-                        onClick={() => patchBinding(server.id, { tools: [], approval: [] })}
+                        onClick={() => patchBinding(key, { tools: [], approval: [], data: undefined })}
                         disabled={!binding.tools.length}
                       >
                         Clear
@@ -395,10 +458,10 @@ export function ToolsForm({
       <Section title="Approval overrides" subtitle="Per-server tool lists that require a human decision.">
         {!bindings.length ? <p className="as-muted">Bind an MCP server first.</p> : null}
         {bindings.map((binding) => (
-          <Field key={String(binding.serverId)} label={`${binding.serverName || binding.serverId} — tools needing approval`}>
+          <Field key={bindingKey(binding)} label={`${binding.serverName || binding.serverId} — tools needing approval`}>
             <TagsInput
               value={binding.approval}
-              onChange={(approval) => patchBinding(binding.serverId as number, { approval })}
+              onChange={(approval) => patchBinding(bindingKey(binding), { approval })}
               placeholder="Tool name, then Enter"
             />
           </Field>
@@ -413,6 +476,8 @@ interface SelectedItem {
   label: string;
   testId: string;
   hitl?: boolean;
+  /** Right-hand badge, e.g. the sampled-rows summary. */
+  note?: string;
   onRemove: () => void;
   onToggleHitl?: () => void;
 }
@@ -454,6 +519,7 @@ function SelectedRow({
                 {item.label}
                 {item.hitl ? <span className="as-selected-hitl"> (HITL)</span> : null}
               </span>
+              {item.note ? <span className="as-selected-note">{item.note}</span> : null}
               <button
                 type="button"
                 className="as-chip-remove"

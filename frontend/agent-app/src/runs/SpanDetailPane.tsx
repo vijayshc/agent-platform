@@ -1,7 +1,11 @@
 /** Right-hand inspector for one trace span. */
 import { useEffect, useMemo, useState } from "react";
 
-import { MarkdownRenderer } from "../chat/MarkdownRenderer";
+// A trace exists to show what the model actually produced, so this pane renders
+// plain markdown: ``#CHART_D1`` / ``#TABLE_D1`` and their fenced specs stay
+// visible as text. Resolving them here would need the run's tool-data cache and
+// would replace the raw response with a rendering.
+import { MarkdownCore } from "../chat/MarkdownCore";
 import type { TraceSpan, TraceSpanEvent, TraceSpanIO, TraceTurn } from "../types";
 import { CopyButton } from "./traceBits";
 import { coerceJson, formatDur, formatEventWhen, formatOffset, pretty, roleLabel } from "./runUtils";
@@ -23,7 +27,7 @@ function ReasoningBlock({ text }: { text: string }) {
   return (
     <details className="aa-tx-reasoning">
       <summary>Reasoning</summary>
-      <MarkdownRenderer content={text} />
+      <MarkdownCore content={text} />
     </details>
   );
 }
@@ -65,7 +69,7 @@ function TurnBlock({ turn }: { turn: TraceTurn }) {
         {turn.reasoning ? <ReasoningBlock text={turn.reasoning} /> : null}
         {turn.text ? (
           <div className="aa-turn-body">
-            <MarkdownRenderer content={turn.text} />
+            <MarkdownCore content={turn.text} />
           </div>
         ) : null}
         {calls.map((call, index) => (
@@ -90,7 +94,7 @@ function MessageList({ io }: { io?: TraceSpanIO | null }) {
         <details className="aa-turn-system" key={`system-${index}`}>
           <summary>System instructions</summary>
           <div className="aa-turn-body">
-            <MarkdownRenderer content={turn.text} />
+            <MarkdownCore content={turn.text} />
           </div>
         </details>
       ))}
@@ -169,7 +173,7 @@ function ResultBlock({ label, value }: { label: string; value: unknown }) {
         <pre className="aa-tx-payload">{text || "—"}</pre>
       ) : (
         <div className="aa-tx-payload">
-          <MarkdownRenderer content={text} />
+          <MarkdownCore content={text} />
         </div>
       )}
     </div>
@@ -302,7 +306,7 @@ function OverviewTab({ span }: { span: TraceSpan }) {
           <div className="aa-span-field">
             <div className="aa-span-field-label">Tool description</div>
             <div className="aa-turn-body">
-              <MarkdownRenderer content={span.tool_description} />
+              <MarkdownCore content={span.tool_description} />
             </div>
           </div>
         ) : null}

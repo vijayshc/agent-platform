@@ -6,21 +6,16 @@ import os
 import threading
 import time
 import urllib.request
-from pathlib import Path
 from typing import Any
+
+from src.phoenix_env import ensure_phoenix_workdir
 
 logger = logging.getLogger("text2sql.services.phoenix")
 
-# Project root: src/services/phoenix_service.py -> src/services -> src -> repo.
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-# Phoenix resolves its working directory exactly once, at import time
-# (``phoenix.config.WORKING_DIR = get_working_dir()``), so this environment
-# variable has to be set before any ``phoenix`` module is imported. The working
-# directory holds the trace database (``phoenix.db``); keeping it inside the
-# project keeps traces with the repository instead of the user's home directory.
-_PHOENIX_WORKING_DIR = os.environ.get("PHOENIX_WORKING_DIR") or str(_PROJECT_ROOT / ".phoenix")
-os.environ["PHOENIX_WORKING_DIR"] = _PHOENIX_WORKING_DIR
+# The trace database lives with the repository, not in the user's home
+# directory; see ``src/phoenix_env.py`` for why this has to happen before the
+# first ``phoenix`` import.
+_PHOENIX_WORKING_DIR = ensure_phoenix_workdir()
 
 _PHOENIX_SESSION: Any = None
 _PHOENIX_LOCK = threading.Lock()

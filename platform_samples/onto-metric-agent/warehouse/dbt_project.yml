@@ -1,0 +1,9 @@
+name: bank_semantic
+version: 1.0.0
+config-version: 2
+
+profile: bank_semantic
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]

@@ -32,6 +32,7 @@ from src.agent_platform.runtime.events import (
     sse_payload,
 )
 from src.agent_platform.runtime.hitl import normalize_decisions
+from src.agent_platform.runtime.tool_data import resolve_tool_data, scope_from_namespace
 from src.agent_platform.runtime.workspace import (
     ensure_workspace_baseline,
     seed_workspace,
@@ -168,7 +169,11 @@ class RuntimeHost:
         # conversation/run public_id) so a fresh session can never resume an
         # orphaned thread left behind by a recycled integer id.
         namespace = checkpoint_namespace(run_id=run_id, conversation_id=conversation_id)
-        cp_cm = sqlite_checkpoint_storage(checkpoint_dir_for(namespace))
+        checkpoint_dir = checkpoint_dir_for(namespace)
+        cp_cm = sqlite_checkpoint_storage(checkpoint_dir)
+        # Cached tool tables share the conversation's identity, so a reference
+        # the model was given in an earlier turn still resolves in this one.
+        tool_scope = scope_from_namespace(namespace, checkpoint_dir)
         def_cfg = dict(definition.get("config") or definition)
         store_enabled = memory_enabled(def_cfg)
         store_cm = sqlite_store_storage() if store_enabled else nullcontext(None)
@@ -390,6 +395,7 @@ class RuntimeHost:
 
                 if pending:
                     final_text = redact_paths(final_text)
+                    tool_data = resolve_tool_data(final_text, tool_scope)
                     RunStore.set_pending(run_id, pending)
                     if conversation_id:
                         _persist_assistant_message(
@@ -399,9 +405,16 @@ class RuntimeHost:
                             pending=pending,
                             agent_name=agent_name,
                             reasoning=reasoning_text,
+                            tool_data=tool_data,
                         )
                     yield sse_payload("status", message="awaiting_approval", run_id=run_id)
-                    yield sse_payload("done", run_id=run_id, reply=final_text, status="awaiting_approval")
+                    yield sse_payload(
+                        "done",
+                        run_id=run_id,
+                        reply=final_text,
+                        status="awaiting_approval",
+                        tool_data=tool_data,
+                    )
                 else:
                     # The reply is what this run's own stream reported. Nothing is
                     # read back from the checkpoint: the thread also holds every
@@ -412,6 +425,7 @@ class RuntimeHost:
                         raise NoAnswerProduced(_EMPTY_ANSWER)
 
                     final_text = redact_paths(final_text)
+                    tool_data = resolve_tool_data(final_text, tool_scope)
                     RunStore.finish(run_id, "success", final_reply=final_text)
                     if conversation_id:
                         _persist_assistant_message(
@@ -421,8 +435,9 @@ class RuntimeHost:
                             pending=None,
                             agent_name=agent_name,
                             reasoning=reasoning_text,
+                            tool_data=tool_data,
                         )
-                    yield sse_payload("done", run_id=run_id, reply=final_text)
+                    yield sse_payload("done", run_id=run_id, reply=final_text, tool_data=tool_data)
 
             except Exception as exc:
                 logger.exception("run failed")
@@ -514,6 +529,7 @@ def _persist_assistant_message(
     pending: dict[str, Any] | None,
     agent_name: str | None = None,
     reasoning: str = "",
+    tool_data: list[dict[str, Any]] | None = None,
 ) -> None:
     run = RunStore.get(run_id) or {}
     meta: dict[str, Any] = {
@@ -526,6 +542,12 @@ def _persist_assistant_message(
         # The chat timeline reads this back on reload; the live stream is
         # rendered from reasoning SSE chunks before this row exists.
         meta["reasoning"] = reasoning.strip()
+    if tool_data:
+        from src.agent_platform.runtime.tool_data import descriptors_from_payloads
+        # Only descriptors are persisted. The rows stay in the conversation's
+        # tool-data archive, which the read path resolves them from, so the
+        # result is not duplicated into the message row.
+        meta["tool_data"] = descriptors_from_payloads(tool_data)
     ConversationStore.upsert_assistant_for_run(
         conversation_id,
         run_id,

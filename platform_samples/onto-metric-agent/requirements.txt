@@ -1,0 +1,13 @@
+# Runtime for the MCP server, installed into this module's .venv by setup.sh.
+#
+# The server runs in an isolated venv so its dbt/MetricFlow dependencies never
+# touch the shared platform environment.
+#
+#   mcp             MCP SDK (1.x low-level Server API; 2.x changed it)
+#   dbt-metricflow  the real MetricFlow CLI (`mf`)
+#   dbt-duckdb      the warehouse adapter MetricFlow runs against
+#   duckdb          the warehouse engine
+mcp>=1.9,<2
+dbt-metricflow
+dbt-duckdb
+duckdb

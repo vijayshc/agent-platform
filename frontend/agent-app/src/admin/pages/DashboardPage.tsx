@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { AdminError, AdminLoading, PageHeader } from "../adminShared";
 import { chartAxisProps, chartGridProps, compact, shortDay, useChartPalette, type ChartPalette } from "../chartTheme";
+import { ChartTooltip } from "../../shared/ChartTooltip";
 import { fetchDashboardAnalytics, type DashboardAnalytics } from "./dashboardApi";
 
 interface BreakdownItem {
@@ -93,35 +94,6 @@ function Panel({
 }
 
 /* ------------------------------------------------------------------ *
- * Chart tooltip
- * ------------------------------------------------------------------ */
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  p,
-}: {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color?: string }>;
-  label?: string;
-  p: ChartPalette;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div className="aa-chart-tip" style={{ background: p.tooltipBg, border: `1px solid ${p.tooltipBorder}` }}>
-      <div className="aa-chart-tip-date">{label}</div>
-      {payload.map((entry) => (
-        <div key={entry.name} className="aa-chart-tip-row">
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: entry.color }} />
-          <span className="aa-chart-tip-name">{entry.name}</span>
-          <span className="aa-chart-tip-val">{compact(entry.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ *
  * Donut chart (compact, centered)
  * ------------------------------------------------------------------ */
 function DonutChart({ data, p, height = 220 }: { data: Array<BreakdownItem & { color?: string }>; p: ChartPalette; height?: number }) {
@@ -147,7 +119,7 @@ function DonutChart({ data, p, height = 220 }: { data: Array<BreakdownItem & { c
                 <Cell key={i} fill={colorFor(d, i)} />
               ))}
             </Pie>
-            <Tooltip content={<ChartTooltip p={p} />} />
+            <Tooltip content={<ChartTooltip />} />
           </PieChart>
         </ResponsiveContainer>
         <div className="aa-donut-total">
@@ -200,7 +172,7 @@ function HBarChart({
         <CartesianGrid {...rule} />
         <XAxis type="number" {...tickCfg} tickFormatter={compact} />
         <YAxis type="category" dataKey="name" {...tickCfg} width={130} tick={{ fill: p.text, fontSize: 11 }} />
-        <Tooltip content={<ChartTooltip p={p} />} cursor={{ fill: p.grid, opacity: 0.3 }} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: p.grid, opacity: 0.3 }} />
         <Bar dataKey="value" name="Count" fill={fill} radius={[4, 4, 4, 4]} barSize={16} />
       </BarChart>
     </ResponsiveContainer>
@@ -270,7 +242,7 @@ export function DashboardPage() {
               <CartesianGrid {...grid} />
               <XAxis dataKey="date" {...axis} tickFormatter={shortDay} />
               <YAxis {...axis} tickFormatter={compact} width={40} />
-              <Tooltip content={<ChartTooltip p={p} />} />
+              <Tooltip content={<ChartTooltip />} />
               <Area type="monotone" dataKey="count" name="Messages" stroke={p.primary} strokeWidth={2.5} fill="url(#dashInteractions)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -289,7 +261,7 @@ export function DashboardPage() {
               <CartesianGrid {...grid} />
               <XAxis dataKey="date" {...axis} tickFormatter={shortDay} />
               <YAxis {...axis} tickFormatter={compact} width={40} />
-              <Tooltip content={<ChartTooltip p={p} />} />
+              <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="count" name="Runs" fill={p.series[1]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

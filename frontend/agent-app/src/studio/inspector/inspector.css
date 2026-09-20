@@ -376,9 +376,10 @@ body.as-resizing {
 }
 
 .as-selected-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Long `server/tool` names wrap instead of truncating to "Text2SQL/ex…",
+     which is unreadable at the default narrow inspector width. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .as-selected-hitl {
@@ -428,6 +429,7 @@ body.as-resizing {
   border-radius: 999px;
   font-size: 11px;
   padding: 2px 8px;
+  min-height: 24px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -675,4 +677,167 @@ body.as-resizing {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-tool data settings (charts / full tables)
+ * ------------------------------------------------------------------ */
+
+.as-tool-item {
+  border-radius: 8px;
+}
+
+.as-tool-item.is-selected {
+  background: color-mix(in srgb, var(--info-color) 8%, transparent);
+}
+
+/* The selected tint now belongs to the item, which also holds the panel. */
+.as-tool-item .as-tool-row.is-selected,
+.as-tool-item .as-tool-row:hover {
+  background: transparent;
+}
+
+.as-selected-note {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--info-color);
+  background: color-mix(in srgb, var(--info-color) 14%, transparent);
+}
+
+.as-data-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 2px 8px;
+  min-height: 24px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed);
+}
+
+.as-data-toggle:hover,
+.as-data-toggle.is-open {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.as-data-toggle.is-on {
+  color: var(--info-color);
+  border-color: color-mix(in srgb, var(--info-color) 50%, transparent);
+  background: color-mix(in srgb, var(--info-color) 12%, transparent);
+}
+
+.as-data-toggle-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.as-data-panel {
+  margin: 2px 4px 8px 26px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-left: 2px solid color-mix(in srgb, var(--info-color) 65%, transparent);
+  border-radius: 8px;
+  background: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.as-data-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Names the tool the panel edits: the panel can scroll away from its row. */
+.as-data-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.as-data-panel-title code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--hover-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.as-data-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.as-data-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+}
+
+.as-data-field-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.as-data-field-label em {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.as-data-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.as-data-hint code {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 10.5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+/* At the default narrow inspector width a tool description is squeezed to a
+   zero-width sliver; hide it deliberately instead of showing a broken sliver.
+   The tool name and its settings stay fully readable. */
+.as-tool-list {
+  container-type: inline-size;
+}
+
+@container (max-width: 440px) {
+  .as-tool-desc {
+    display: none;
+  }
 }

@@ -1,3 +1,9 @@
+from src.phoenix_env import ensure_phoenix_workdir
+
+# Before any other import: ``phoenix`` fixes its working directory (where the
+# trace database lives) the first time it is imported.
+ensure_phoenix_workdir()
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, current_app, g
 from src.utils.schema_manager import SchemaManager
 from src.utils.user_manager import UserManager

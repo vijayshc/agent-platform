@@ -3944,7 +3944,8 @@
 }
 
 /* Hover tooltip showing the chat start/end timestamps (fixed, portal-rendered
-   so it is not clipped by the sidebar's scroll container). */
+   so it is not clipped by the sidebar's scroll container). It is anchored to
+   the right of the rail so it never covers the chat item it describes. */
 .aa-rail-conv-tip {
   position: fixed;
   z-index: 1000;
@@ -5097,6 +5098,9 @@
 }
 
 .aa-colmap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   border: 0;
   border-right: 1px solid var(--border-color);
   background: transparent;
@@ -5122,9 +5126,15 @@
   font-weight: 600;
 }
 
-.aa-colmap-btn.meta.active {
+.aa-colmap-btn.metadata.active {
   background: var(--info-color);
   color: #ffffff;
+}
+
+/* Skip is a distinct, neutral choice — not the same fill as Embed. */
+.aa-colmap-btn.skip.active {
+  background: var(--border-color);
+  color: var(--text-primary);
 }
 
 .aa-colmap-preview-wrap {
@@ -5175,6 +5185,32 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+/* Fixed layout keeps the table exactly as wide as its container, so a very
+   long unbroken filename can never force horizontal scroll. The Document
+   column takes the remaining space; the rest have explicit widths. */
+.aa-admin-dt .aa-table.aa-dt.aa-knowledge-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.aa-admin-dt .aa-table.aa-dt.aa-knowledge-table tbody td.aa-doc-col {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.aa-doc-name {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+/* Keep "(N chunks)" whole: the surrounding cell may break a filename anywhere. */
+.aa-doc-chunk-count {
+  white-space: nowrap;
 }
 
 .aa-doc-chunking {
@@ -6004,3 +6040,11 @@
   border-bottom-color: var(--info-color);
 }
 .aa-hosted-tab-note { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+
+/* A reply that renders cached tool data spans the full transcript width,
+   matching the composer, so charts and wide tables are not boxed into a
+   narrow column. Short text replies keep hugging their content. */
+.aa-bubble.assistant .aa-bubble-body.aa-rich {
+  width: 100%;
+  max-width: 100%;
+}

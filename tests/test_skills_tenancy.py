@@ -42,6 +42,13 @@ OWNER_ID = 11       # holds no role
 ANALYST_ID = 12     # holds role "analyst"
 OTHER_ID = 13       # holds role "other"
 
+#: Packages the platform itself ships in ``src/agent_platform/skills``. They have
+#: no owner row of their own, so they are grandfathered-visible to every user --
+#: which is why every "what can this user see" assertion below includes them.
+#: ``chart-rendering`` is the prompt the runtime loads by fixed name into any
+#: agent whose tool opted into data sampling (``runtime.tool_data.prompt``).
+SHIPPED_PACKAGES = {"chart-rendering"}
+
 
 def _connect(db_path):
     conn = sqlite3.connect(str(db_path))
@@ -308,7 +315,7 @@ def test_package_owner_and_grandfather(skills_env):
     owner_names = visible_skill_names(OWNER_ID)
     assert {"owned-pkg", "seed-pkg"} <= owner_names
     unrelated = visible_skill_names(ANALYST_ID)
-    assert unrelated == {"seed-pkg"}
+    assert unrelated == {"seed-pkg"} | SHIPPED_PACKAGES
 
     assert can_access_skill("seed-pkg", OTHER_ID)          # no owner -> grandfathered
     assert not can_access_skill("owned-pkg", ANALYST_ID)
@@ -441,17 +448,17 @@ def test_package_overview_filters_and_denies(skills_env, monkeypatch):
 
     owner_view = owner_client.get("/api/v1/skills/overview").json
     owner_names = {pkg["name"] for pkg in owner_view["packages"]}
-    assert owner_names == {"mine", "seeded"}
+    assert owner_names == {"mine", "seeded"} | SHIPPED_PACKAGES
     mine = next(pkg for pkg in owner_view["packages"] if pkg["name"] == "mine")
     assert mine["id"] == owned["id"] and mine["can_manage"] is True
     seeded = next(pkg for pkg in owner_view["packages"] if pkg["name"] == "seeded")
     assert seeded["can_manage"] is False
 
     analyst_view = analyst_client.get("/api/v1/skills/overview").json
-    assert {pkg["name"] for pkg in analyst_view["packages"]} == {"theirs", "seeded"}
+    assert {pkg["name"] for pkg in analyst_view["packages"]} == {"theirs", "seeded"} | SHIPPED_PACKAGES
 
     admin_view = admin_client.get("/api/v1/skills/overview").json
-    assert {pkg["name"] for pkg in admin_view["packages"]} == {"mine", "theirs", "seeded"}
+    assert {pkg["name"] for pkg in admin_view["packages"]} == {"mine", "theirs", "seeded"} | SHIPPED_PACKAGES
 
     # Direct object access: owner/admin 200, unrelated 403, missing 404.
     assert owner_client.get("/api/v1/skills/mine/tree").status_code == 200

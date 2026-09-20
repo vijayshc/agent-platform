@@ -58,6 +58,31 @@ function shownText(solid: string, chunks: Chunk[], pending: string): string {
   return solid + chunks.map((c) => c.text).join("") + pending;
 }
 
+/** The ```language of an open fence, when it is a chart/table block. */
+function dataFenceKind(live: string): "chart" | "table" | null {
+  const first = live.split("\n")[0].trim().toLowerCase();
+  if (/^```chart\b/.test(first)) return "chart";
+  if (/^```table\b/.test(first)) return "table";
+  return null;
+}
+
+/** Placeholder shown while a chart/table fence is still streaming, so the raw
+ *  JSON never flashes in the transcript. */
+function DataFenceSkeleton({ kind }: { kind: "chart" | "table" }) {
+  return (
+    <div className="td-card td-card-skeleton" data-testid={`${kind}-skeleton`} aria-busy="true">
+      <div className="td-card-head">
+        <span className="td-card-title">Preparing {kind}…</span>
+      </div>
+      <div className="td-skeleton-body" aria-hidden="true">
+        <span className="td-skeleton-bar" />
+        <span className="td-skeleton-bar td-skeleton-short" />
+        <span className="td-skeleton-bar" />
+      </div>
+    </div>
+  );
+}
+
 function LiveTail({ text }: { text: string }) {
   const [solid, setSolid] = useState("");
   const [chunks, setChunks] = useState<Chunk[]>([]);
@@ -165,6 +190,7 @@ export function StreamingMarkdown({ content, streaming }: { content: string; str
   const { frozenBlocks, live, liveIsFence } = splitStreaming(content);
   const tail = live ? <LiveTail text={live} /> : null;
   const caret = <span className="aa-caret" aria-hidden="true" />;
+  const fenceKind = liveIsFence ? dataFenceKind(live) : null;
 
   return (
     <div className="chat-markdown">
@@ -173,7 +199,9 @@ export function StreamingMarkdown({ content, streaming }: { content: string; str
           <MarkdownRenderer content={block} asFragment />
         </div>
       ))}
-      {liveIsFence ? (
+      {fenceKind ? (
+        <DataFenceSkeleton kind={fenceKind} />
+      ) : liveIsFence ? (
         <pre className="aa-md-pre aa-live-fence">
           {tail}
           {caret}

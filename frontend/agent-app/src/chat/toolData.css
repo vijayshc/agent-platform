@@ -1,0 +1,480 @@
+/* Tool-result data cards: charts and full DataTables inside a chat reply.
+   Every color comes from the app theme tokens, so both surfaces follow the
+   active dark / light / colored theme. */
+
+.td-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  margin: 10px 0;
+}
+
+.td-row > .td-card {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .td-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.td-card {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--light-bg);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+
+.td-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.td-card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.td-card-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.td-card-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.td-card-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-chart {
+  width: 100%;
+  padding: 8px 10px 4px;
+  min-width: 0;
+}
+
+.td-card-foot {
+  margin-top: auto;
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border-color);
+}
+
+.td-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.td-card-missing {
+  border-style: dashed;
+}
+
+/* ---------------------------------------------------------------- legend */
+
+.td-legend {
+  list-style: none;
+  margin: 2px 0 4px;
+  padding: 0 6px 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.td-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.td-legend-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.td-legend-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.td-legend-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-legend-more {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Pie / donut: chart and legend side by side, like the admin dashboard. */
+.td-pie-wrap {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+/* Legend hidden: the pie takes the full card width instead of leaving an
+   empty second column. */
+.td-pie-solo {
+  grid-template-columns: 1fr;
+}
+
+.td-pie-chart {
+  position: relative;
+  min-width: 0;
+}
+
+.td-pie-total {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.td-pie-total-value {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-pie-total-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.td-legend-pie {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 5px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0 12px 0 0;
+}
+
+.td-legend-pie .td-legend-item {
+  width: 100%;
+}
+
+.td-legend-pie .td-legend-label {
+  flex: 1;
+  max-width: none;
+}
+
+@media (max-width: 640px) {
+  .td-pie-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ----------------------------------------------------------------- table */
+
+.td-table-wrap {
+  padding: 4px 10px 10px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+table.td-table {
+  width: 100% !important;
+  margin: 0 !important;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+table.td-table thead th {
+  background: var(--table-header-bg);
+  color: var(--table-header-text);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--table-border) !important;
+  white-space: nowrap;
+}
+
+table.td-table tbody td {
+  background: var(--table-row-bg);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--table-border) !important;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+table.td-table tbody tr:hover td,
+table.td-table.display tbody tr:hover > td {
+  background: var(--table-row-hover) !important;
+}
+
+/* DataTables 3 controls, themed to match the app's own tables.
+   The `--dt-*` variables are the library's own theme hook: overriding them here
+   fixes the light-on-dark defaults (invisible disabled paging, black sort
+   arrows) without fighting the library's selectors. */
+.td-card-table {
+  --dt-control_color: var(--text-secondary);
+  --dt-order-arrow_color: var(--text-muted);
+  --dt-order-arrow_color-current: var(--info-color);
+  --dt-order-arrow_opacity: 0.45;
+  --dt-order-arrow_opacity-current: 1;
+  --dt-paging-button_color-disabled: var(--text-muted);
+  --dt-paging-button_color-current: var(--text-primary);
+  --dt-paging-button_background-current: color-mix(in srgb, var(--info-color) 16%, transparent);
+  --dt-paging-button_border-current: 1px solid color-mix(in srgb, var(--info-color) 55%, transparent);
+  --dt-paging-button_background-current-hover: color-mix(in srgb, var(--info-color) 22%, transparent);
+  --dt-paging-button_border-current-hover: 1px solid color-mix(in srgb, var(--info-color) 70%, transparent);
+  --dt-input_border: 1px solid var(--input-border);
+  --dt-input_background: var(--input-bg);
+  --dt-input_color: var(--text-primary);
+}
+
+.td-card-table .dt-container {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.td-card-table .dt-layout-row {
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 4px;
+}
+
+.td-card-table .dt-layout-row:first-child {
+  padding-top: 8px;
+}
+
+.td-card-table .dt-search,
+.td-card-table .dt-length {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.td-card-table .dt-search input,
+.td-card-table .dt-length select {
+  appearance: none;
+  height: 30px;
+  background: var(--input-bg) !important;
+  border: 1px solid var(--input-border) !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.td-card-table .dt-length select {
+  /* appearance:none removes the native arrow; draw a themed one. */
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 9px center !important;
+  cursor: pointer;
+}
+
+.td-card-table .dt-search input:focus,
+.td-card-table .dt-length select:focus {
+  border-color: var(--input-focus-border) !important;
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+.td-card-table .dt-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.td-card-table .dt-info {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-card-table .dt-paging {
+  display: flex;
+  gap: 4px;
+}
+
+.td-card-table .dt-paging .dt-paging-button {
+  appearance: none;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 7px;
+  min-width: 26px;
+  padding: 3px 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.td-card-table .dt-paging .dt-paging-button:hover:not(.disabled) {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.td-card-table .dt-paging .dt-paging-button.current {
+  background: color-mix(in srgb, var(--info-color) 16%, transparent);
+  border-color: color-mix(in srgb, var(--info-color) 55%, transparent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.td-card-table .dt-paging .dt-paging-button.disabled {
+  color: var(--text-muted);
+  border-color: var(--border-color);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.td-card-table .dt-scroll {
+  border: none;
+}
+
+/* Sort indicators follow the theme (see --dt-order-arrow_* above). */
+table.td-table thead th.dt-orderable-asc,
+table.td-table thead th.dt-orderable-desc,
+table.td-table thead th.dt-ordering-asc,
+table.td-table thead th.dt-ordering-desc {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------- skeleton */
+
+.td-card-skeleton .td-card-head {
+  border-bottom: none;
+}
+
+.td-skeleton-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 14px 16px;
+}
+
+.td-skeleton-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--hover-bg) 0%,
+    color-mix(in srgb, var(--hover-bg) 55%, var(--border-color)) 50%,
+    var(--hover-bg) 100%
+  );
+  background-size: 200% 100%;
+  animation: td-shimmer 1.4s ease-in-out infinite;
+}
+
+.td-skeleton-short {
+  width: 62%;
+}
+
+@keyframes td-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-skeleton-bar {
+    animation: none;
+  }
+}
+
+/* Axis titles are rendered in the card (not by Recharts) so they can never
+   collide with the tick labels, whatever the value formatting. */
+.td-cartesian {
+  position: relative;
+}
+
+.td-cartesian.has-ylabel {
+  padding-left: 16px;
+}
+
+.td-axis-y {
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%) rotate(180deg);
+  writing-mode: vertical-rl;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.td-axis-x {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  padding: 2px 0 2px;
+}
+
+/* Value labels on bars and the percentage column in pie legends. */
+.td-value-label {
+  fill: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.td-legend-pct {
+  margin-left: 6px;
+  min-width: 34px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-legend-pie .td-legend-value {
+  min-width: 52px;
+  text-align: right;
+}

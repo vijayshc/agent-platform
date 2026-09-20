@@ -1,5 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import { StreamingMarkdown } from "./StreamingMarkdown";
+import { hasRichBlocks } from "./chartProtocol";
+import { ToolDataProvider } from "./toolDataContext";
+import type { ToolDataPayload } from "./toolDataTypes";
 import "./chatStream.css";
 
 function visibleText(value?: string): string {
@@ -10,11 +13,13 @@ export function BubbleBody({
   content,
   prevContent,
   streaming,
+  toolData,
   onSettle,
 }: {
   content: string;
   prevContent?: string;
   streaming?: boolean;
+  toolData?: ToolDataPayload[];
   onSettle?: () => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -86,19 +91,25 @@ export function BubbleBody({
   }, [swapping, prev]);
 
   return (
-    <div className={`aa-bubble-body aa-md${streaming ? " aa-streaming" : ""}`}>
-      <div className="aa-swap-stage" ref={stageRef}>
-        {prev ? (
-          <div key={prev} className="aa-bubble-prev" ref={prevRef} aria-hidden={swapping || undefined}>
-            <StreamingMarkdown content={prev} />
-          </div>
-        ) : null}
-        {showCur ? (
-          <div className="aa-bubble-cur" ref={curRef}>
-            <StreamingMarkdown content={cur} streaming={streaming} />
-          </div>
-        ) : null}
+    <ToolDataProvider items={toolData} pending={streaming}>
+      <div
+        className={`aa-bubble-body aa-md${streaming ? " aa-streaming" : ""}${
+          hasRichBlocks(cur) || hasRichBlocks(prev) ? " aa-rich" : ""
+        }`}
+      >
+        <div className="aa-swap-stage" ref={stageRef}>
+          {prev ? (
+            <div key={prev} className="aa-bubble-prev" ref={prevRef} aria-hidden={swapping || undefined}>
+              <StreamingMarkdown content={prev} />
+            </div>
+          ) : null}
+          {showCur ? (
+            <div className="aa-bubble-cur" ref={curRef}>
+              <StreamingMarkdown content={cur} streaming={streaming} />
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </ToolDataProvider>
   );
 }

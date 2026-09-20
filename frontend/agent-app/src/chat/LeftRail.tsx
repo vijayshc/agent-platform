@@ -39,8 +39,10 @@ function ChatItem({
   );
 }
 
-/** Width of the conversation hover tooltip (`.aa-rail-conv-tip` max-width). */
-const TIP_WIDTH = 252;
+/** Max width of the conversation hover tooltip (`.aa-rail-conv-tip` max-width). */
+const TIP_MAX_WIDTH = 260;
+/** Gap between the rail edge and the hover tooltip. */
+const TIP_GAP = 8;
 
 export function LeftRail({
   collapses,
@@ -108,12 +110,14 @@ export function LeftRail({
 
   function showTip(c: Conversation, e: React.MouseEvent<HTMLButtonElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    // Keep the tooltip inside the rail: rendering it over the transcript (where
-    // an approval card can be waiting) hides content the user is reading.
+    // Anchor the tooltip just outside the rail, to the right of the hovered
+    // chat item, so it never covers the item (or the rest of the list) it
+    // describes. Clamp to the viewport so it stays fully visible on narrow
+    // windows.
     const railRight = e.currentTarget.closest(".aa-rail")?.getBoundingClientRect().right ?? rect.right;
     setHover({
       c,
-      x: Math.max(8, railRight - TIP_WIDTH - 8),
+      x: Math.min(railRight + TIP_GAP, Math.max(8, window.innerWidth - TIP_MAX_WIDTH - TIP_GAP)),
       y: Math.min(rect.top, Math.max(8, window.innerHeight - 104)),
     });
   }

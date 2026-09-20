@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: time_spine
+    description: One row per day; MetricFlow's standard time spine.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+
+  - name: dim_product
+    description: Product dimension with the taxonomy flattened to family and sub-family.
+    columns:
+      - name: product_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: product_family
+        description: Root of the product's taxonomy branch; includes every sub-family.
+      - name: product_subfamily
+        description: The product's own node in its family branch.
+
+  - name: dim_customer
+    description: Customer dimension with the legal-entity tree flattened to levels.
+    columns:
+      - name: customer_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: legal_entity_l1
+        description: Root legal entity of the customer's branch.
+      - name: legal_entity_l2
+        description: The customer's own legal entity.
+
+  - name: fct_holding
+    description: Holding-grain position fact.
+    columns:
+      - name: holding_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_account')
+                field: account_id
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+
+  - name: fct_control_event
+    description: Control-evaluation fact.
+    columns:
+      - name: breach_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_account')
+                field: account_id

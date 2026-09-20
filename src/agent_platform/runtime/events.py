@@ -43,6 +43,25 @@ def _clip_body(value: Any) -> Any:
     return text if len(text) <= BODY_CAP else text[:BODY_CAP]
 
 
+def _clip_tool_result(value: Any) -> str:
+    """A ToolMessage body as clipped text.
+
+    MCP tools return a list of content blocks. Stringifying that list ships a
+    Python repr (and every row) to the browser; extracting the text and clipping
+    it keeps the transcript event bounded. The full table still reaches the
+    client through the turn's ``tool_data`` payload when it is charted.
+    """
+    if isinstance(value, list):
+        parts: list[str] = []
+        for block in value:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") in (None, "text"):
+                parts.append(str(block.get("text") or ""))
+        value = "".join(parts)
+    return _clip_body(value)
+
+
 
 
 def _plain_text_content(msg: Any) -> str:
@@ -368,7 +387,7 @@ def _map_message(
                 "tool_result",
                 tool_name=getattr(msg, "name", None) or getattr(msg, "tool_name", "tool"),
                 call_id=getattr(msg, "tool_call_id", None),
-                result=_clip_body(getattr(msg, "content", "")),
+                result=_clip_tool_result(getattr(msg, "content", "")),
                 agent=last_agent,
             )
         )

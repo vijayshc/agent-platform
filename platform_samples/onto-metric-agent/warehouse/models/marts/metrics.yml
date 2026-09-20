@@ -1,0 +1,32 @@
+version: 2
+
+# Metrics carry their own definition and annotations. Adding a metric here is the
+# only change needed to make it available to the agent — no tool or agent change.
+metrics:
+  - name: aum
+    description: Assets under management — the sum of holding market value at an as-of date.
+    label: Assets under management
+    type: simple
+    config:
+      meta:
+        temporal_type: snapshot
+        time_filter_hint: >
+          Point-in-time value: set start_time and end_time to the SAME date. Passing
+          only end_time sums every earlier snapshot and returns a wrong, larger number.
+    type_params:
+      measure: market_value
+
+  - name: suitability_fail_count
+    description: Number of suitability control FAIL events.
+    label: Suitability fail count
+    type: simple
+    config:
+      meta:
+        temporal_type: event
+        time_filter_hint: >
+          Event count: set start_time and end_time to the window the question describes.
+    type_params:
+      measure: event_count
+    filter: |
+      {{ Dimension('breach__control_name') }} = 'Suitability'
+      and {{ Dimension('breach__result') }} = 'FAIL'

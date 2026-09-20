@@ -1,4 +1,5 @@
 import type { HitlInterrupt } from "./shared/hitl";
+import type { ToolDataPayload } from "./chat/toolDataTypes";
 
 export type AgentKind = "agent" | "workflow";
 
@@ -113,6 +114,8 @@ export interface StoredMessage {
     public_id?: string;
     /** Full reasoning captured for this assistant turn (chat reload). */
     reasoning?: string;
+    /** Cached tool-result tables behind this turn's charts/tables (chat reload). */
+    tool_data?: ToolDataPayload[];
   } | null;
 }
 
@@ -141,6 +144,8 @@ export interface SseEvent extends HitlInterrupt {
   final?: boolean;
   reasoning_id?: string;
   done?: boolean;
+  /** Cached tool tables the final reply's charts/tables resolve against. */
+  tool_data?: ToolDataPayload[];
   [key: string]: unknown;
 }
 
@@ -169,6 +174,8 @@ export interface ChatMessage {
   swapping?: boolean;
   /** The run finished successfully but the model returned no text at all. */
   emptyReply?: boolean;
+  /** Full cached tables behind this turn's #CHART_ / #TABLE_ placeholders. */
+  toolData?: ToolDataPayload[];
 }
 
 export interface ChatTurn {

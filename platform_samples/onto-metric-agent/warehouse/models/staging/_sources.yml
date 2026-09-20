@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: bank
+    description: Raw bank tables written by warehouse/build.py.
+    schema: main
+    tables:
+      - name: legal_entity
+      - name: customer
+      - name: account
+      - name: product
+      - name: holding
+      - name: control_def
+      - name: control_breach

@@ -74,6 +74,15 @@ def attachments_root() -> Path:
     return path
 
 
+def checkpoint_dir_path(namespace: str) -> Path:
+    """Where a namespace's checkpoint directory lives, without creating it.
+
+    Callers that only read (or delete) the directory must not create it as a
+    side effect, which is why this is separate from :func:`checkpoint_dir_for`.
+    """
+    return uploads_dir() / "agent-checkpoints" / namespace
+
+
 def checkpoint_dir_for(namespace: str) -> Path:
     """Directory for a LangGraph thread's checkpoint+store files.
 
@@ -85,7 +94,7 @@ def checkpoint_dir_for(namespace: str) -> Path:
     conversation's history -- which is exactly the cross-session leak this
     function is designed to prevent.
     """
-    path = uploads_dir() / "agent-checkpoints" / namespace
+    path = checkpoint_dir_path(namespace)
     path.mkdir(parents=True, exist_ok=True)
     return path
 

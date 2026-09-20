@@ -1,0 +1,111 @@
+version: 2
+
+semantic_models:
+  - name: holdings
+    description: >
+      Holding-grain position fact. The product taxonomy and the legal-entity tree are
+      flattened onto the fact, so a family, a sub-family or an entity scope is an
+      ordinary dimension filter. One row per holding: no dimension fans the measure out.
+    model: ref('fct_holding')
+    defaults:
+      agg_time_dimension: as_of_date
+    entities:
+      - name: account
+        type: primary
+        expr: account_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+      - name: product
+        type: foreign
+        expr: product_id
+    dimensions:
+      - name: as_of_date
+        description: Valuation date of the holding snapshot.
+        type: time
+        type_params:
+          time_granularity: day
+      - name: segment
+        description: Customer segment of the account.
+        type: categorical
+      - name: book
+        description: Account book.
+        type: categorical
+      - name: product_family
+        description: >
+          The root of the held product's taxonomy branch. Filter this to include the WHOLE
+          family, i.e. every sub-family beneath it.
+        type: categorical
+        config:
+          meta:
+            hierarchy_level: family
+      - name: product_subfamily
+        description: >
+          The held product's own node in its branch: ONE specific product class, not the
+          family. Use product_family for a family-level question.
+        type: categorical
+        config:
+          meta:
+            hierarchy_level: subfamily
+      - name: product_program
+        description: Cross-cutting business program the product belongs to; does not follow the taxonomy.
+        type: categorical
+        config:
+          meta:
+            classification: program
+      - name: asset_class
+        description: Asset class of the held product.
+        type: categorical
+      - name: legal_entity_l1
+        description: Root legal entity of the account; includes every subsidiary beneath it.
+        type: categorical
+        config:
+          meta:
+            hierarchy_level: "1"
+      - name: legal_entity_l2
+        description: The account's own legal entity.
+        type: categorical
+        config:
+          meta:
+            hierarchy_level: "2"
+    measures:
+      - name: market_value
+        description: Market value of a holding.
+        agg: sum
+        expr: market_value
+
+  - name: control_events
+    description: One row per control evaluation, with the account and customer segment.
+    model: ref('fct_control_event')
+    defaults:
+      agg_time_dimension: event_date
+    entities:
+      - name: breach
+        type: primary
+        expr: breach_id
+      - name: account
+        type: foreign
+        expr: account_id
+      - name: control
+        type: foreign
+        expr: control_id
+    dimensions:
+      - name: event_date
+        description: Date the control was evaluated.
+        type: time
+        type_params:
+          time_granularity: day
+      - name: control_name
+        description: Name of the control that was evaluated.
+        type: categorical
+      - name: result
+        description: Evaluation outcome (PASS or FAIL).
+        type: categorical
+      - name: segment
+        description: Customer segment of the account.
+        type: categorical
+    measures:
+      - name: event_count
+        description: Number of control evaluations.
+        agg: count
+        expr: breach_id

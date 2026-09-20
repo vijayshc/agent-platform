@@ -21,6 +21,7 @@ import {
   type RouterRoute,
   type StudioEdge,
   type StudioNode,
+  type ToolDataSetting,
 } from "./types";
 
 export interface SerializedGraph {
@@ -56,14 +57,37 @@ function compiledMcpBindings(data: NodeData): AgentSpec["mcp_bindings"] {
   for (const binding of data.mcpBindings ?? []) {
     const tools = binding.tools ?? [];
     if (binding.serverId == null && !binding.serverName && !tools.length) continue;
+    const toolData = compiledToolData(binding, tools);
     rows.push({
       ...(binding.serverId != null ? { server_id: binding.serverId } : {}),
       ...(binding.serverName ? { server: binding.serverName } : {}),
       tools,
       approval: binding.approval ?? [],
+      ...(toolData ? { tool_data: toolData } : {}),
     });
   }
   return rows.length ? rows : undefined;
+}
+
+/** Per-tool data settings → the snake_case map the runtime reads. */
+function compiledToolData(
+  binding: McpBinding,
+  tools: string[],
+): NonNullable<AgentSpec["mcp_bindings"]>[number]["tool_data"] | undefined {
+  const entries = Object.entries(binding.data ?? {}).filter(
+    ([name, setting]) => setting?.sample && tools.includes(name),
+  );
+  if (!entries.length) return undefined;
+  return Object.fromEntries(
+    entries.map(([name, setting]) => [
+      name,
+      {
+        sample: true,
+        sample_rows: Math.max(1, Math.round(setting.sampleRows || 20)),
+        cache_rows: Math.max(0, Math.round(setting.cacheRows || 0)),
+      },
+    ]),
+  );
 }
 
 function compiledDeepAgent(data: NodeData): AgentSpec["deep_agent"] | undefined {
@@ -123,6 +147,22 @@ export function agentSpecFromData(data: NodeData): AgentSpec {
 }
 
 /* ----------------------------------------------------------- agent spec in */
+
+/** Semantic `tool_data` → the canvas map (absent when nothing was configured). */
+function parsedToolData(raw: unknown): Record<string, ToolDataSetting> | undefined {
+  const record = asRecord(raw);
+  const out: Record<string, ToolDataSetting> = {};
+  for (const [name, value] of Object.entries(record)) {
+    const entry = asRecord(value);
+    if (!entry.sample) continue;
+    out[name] = {
+      sample: true,
+      sampleRows: Number(entry.sample_rows ?? entry.sampleRows ?? 20) || 20,
+      cacheRows: Math.max(0, Number(entry.cache_rows ?? entry.cacheRows ?? 0) || 0),
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 function parseSubagents(raw: unknown): DeepSubagent[] {
   return asArray<Record<string, unknown>>(raw).map((s) => ({
@@ -184,6 +224,7 @@ export function applySpecToAgentData(
     serverName: String(b.server ?? b.server_name ?? ""),
     tools: asArray<string>(b.tools),
     approval: asArray<string>(b.approval),
+    ...(parsedToolData(b.tool_data) ? { data: parsedToolData(b.tool_data) } : {}),
   }));
   next.skillIds = uniq(asArray<string>(spec.maf_skill_ids));
   next.functionTools = uniq(asArray<string>(spec.function_tools));

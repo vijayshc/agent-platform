@@ -1,0 +1,9 @@
+# DuckDB warehouse for the sample. BANK_DUCKDB lets the caller point at another
+# file; the default is the one warehouse/build.py writes next to this profile.
+bank_semantic:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('BANK_DUCKDB', 'bank.duckdb') }}"
+      threads: 1

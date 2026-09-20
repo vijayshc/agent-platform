@@ -9,6 +9,7 @@ PyJWT>=2.8.0
 python-dotenv # Added for .env file support
 aiosqlite
 pandas
+pyarrow
 openpyxl
 openai>=2.0
 requests

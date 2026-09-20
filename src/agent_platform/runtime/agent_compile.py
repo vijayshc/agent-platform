@@ -133,7 +133,15 @@ def _with_approval_tools(config: dict[str, Any], declared: list[str]) -> dict[st
     return entries
 
 
-def _instructions(config: dict[str, Any], ctx: CompileContext, name: str, client: Any) -> str:
+def _instructions(
+    config: dict[str, Any],
+    ctx: CompileContext,
+    name: str,
+    client: Any,
+    data_policy: Any = None,
+) -> str:
+    from src.agent_platform.runtime.tool_data import tool_data_protocol_note
+
     instructions = config.get("instructions") or f"You are {name}."
     conn_instruction = getattr(client, "_llm_system_instruction", None)
     if conn_instruction:
@@ -145,6 +153,10 @@ def _instructions(config: dict[str, Any], ctx: CompileContext, name: str, client
         if skills_instruction:
             instructions = f"{instructions}\n{skills_instruction}"
     instructions = f"{instructions}\n\n{OPERATING_POLICY}"
+    if data_policy is not None:
+        data_note = tool_data_protocol_note(data_policy)
+        if data_note:
+            instructions = f"{instructions}\n\n{data_note}"
     try:
         from src.agent_platform.runtime.sandbox import capabilities_note
 
@@ -275,7 +287,32 @@ async def compile_agent(
         ctx,
         model=traced,
     )
-    instructions = _instructions(config, ctx, name, client)
+    # Tool-result data handling is automatic (never author-configured): the
+    # middleware clips tabular results to the author's sample size, caches the
+    # full table for the conversation, and stamps every tool result with its
+    # short reference. It is outermost so it post-processes the final
+    # ToolMessage whatever the author's middleware do to the call.
+    from src.agent_platform.runtime.tool_data import (
+        build_tool_data_middleware,
+        policy_from_config,
+        scope_for,
+    )
+
+    data_policy = policy_from_config(config)
+    # The conversation scope is resolved only when a tool actually opted in: an
+    # agent with no data tools must not pay for (or create) a cache directory.
+    data_middleware = (
+        build_tool_data_middleware(
+            data_policy,
+            scope_for(getattr(ctx, "run_id", None), getattr(ctx, "conversation_id", None)),
+            getattr(ctx, "run_id", None),
+        )
+        if data_policy.active
+        else None
+    )
+    if data_middleware is not None:
+        middleware = [data_middleware, *middleware]
+    instructions = _instructions(config, ctx, name, client, data_policy)
     structured = response_format_for(config)
     runtime = normalize_runtime(config)
 

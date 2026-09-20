@@ -7,45 +7,19 @@
    ``description``/``pattern`` fields the Studio's ``AgentDef`` reads at the top
    level, while the published listing carried them.
 
-Live-app behaviour is additionally covered by
-``temp/live_node_kinds.py`` (one ``tool_call`` per call id through a subgraph
-node) and by the cross-surface consistency run.
+(1) is asserted end to end below; the mapping-level guarantees (one delivery per
+message id, a call not confused with its result) live in
+``tests/test_runtime_stream_dedupe.py``, which replaced the old private
+``_duplicate_tool_call`` / ``_duplicate_tool_result`` helpers.
 """
 
 from __future__ import annotations
 
 from src.agent_platform.api.api_helpers import definition_summary, full_definition
 from src.agent_platform.execution.run_store import RunStore
-from src.agent_platform.runtime.host import _duplicate_tool_call, _duplicate_tool_result
 
 
 # --------------------------------------------------------------------- (1)
-def test_a_tool_call_is_streamed_once_per_call_id():
-    seen_calls: set[str] = set()
-    first = {"type": "tool_call", "tool_name": "remember_fact", "call_id": "call_1"}
-    parent_repeat = {"type": "tool_call", "tool_name": "remember_fact", "call_id": "call_1"}
-    other_call = {"type": "tool_call", "tool_name": "recall_facts", "call_id": "call_2"}
-
-    assert _duplicate_tool_call(first, seen_calls) is False
-    assert _duplicate_tool_call(parent_repeat, seen_calls) is True
-    assert _duplicate_tool_call(other_call, seen_calls) is False
-    # Events without a call id are never dropped.
-    assert _duplicate_tool_call({"type": "tool_call", "tool_name": "x"}, set()) is False
-    assert _duplicate_tool_call({"type": "chat"}, set()) is False
-
-
-def test_a_tool_result_is_not_confused_with_its_call():
-    # The call and its result share the call id: a single "seen" set for both
-    # would swallow the result.
-    call = {"type": "tool_call", "tool_name": "remember_fact", "call_id": "call_1"}
-    result = {"type": "tool_result", "tool_name": "remember_fact", "call_id": "call_1"}
-    seen_calls: set[str] = set()
-    seen_results: set[str] = set()
-    assert _duplicate_tool_call(call, seen_calls) is False
-    assert _duplicate_tool_result(result, seen_results) is False
-    assert _duplicate_tool_result(result, seen_results) is True
-
-
 def test_nested_graph_node_streams_one_tool_call_and_result(temp_db):
     """End-to-end: a graph node that calls a tool reports it exactly once.
 

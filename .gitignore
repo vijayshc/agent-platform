@@ -83,3 +83,5 @@ samples/
 .tester_evidence/
 
 docs/
+
+*.zip

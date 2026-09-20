@@ -119,11 +119,23 @@ export interface StudioCatalog {
 
 /* --------------------------------------------------------------- canvas data */
 
+/** Per-tool handling of large tabular results (charts / full tables). */
+export interface ToolDataSetting {
+  /** Send only a sample of the rows to the model; keep the rest aside. */
+  sample: boolean;
+  /** Rows sent to the model when sampling is on. */
+  sampleRows: number;
+  /** Rows kept in the intermediate cache; 0 means every row. */
+  cacheRows: number;
+}
+
 export interface McpBinding {
   serverId: number | null;
   serverName: string;
   tools: string[];
   approval: string[];
+  /** Data settings keyed by tool name; absent for tools the author left alone. */
+  data?: Record<string, ToolDataSetting>;
 }
 
 export interface ResponseFormat {
@@ -235,7 +247,13 @@ export interface AgentSpec {
     subagents?: DeepSubagent[];
     interrupt_on?: Record<string, boolean>;
   };
-  mcp_bindings?: { server_id?: number; server?: string; tools?: string[]; approval?: string[] }[];
+  mcp_bindings?: {
+    server_id?: number;
+    server?: string;
+    tools?: string[];
+    approval?: string[];
+    tool_data?: Record<string, { sample?: boolean; sample_rows?: number; cache_rows?: number }>;
+  }[];
   maf_skill_ids?: string[];
   function_tools?: string[];
 }

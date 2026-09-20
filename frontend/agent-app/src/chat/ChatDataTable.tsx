@@ -1,21 +1,7 @@
 import { memo, useEffect, useRef, type ReactNode } from "react";
-import type { Options, Api } from "datatables.net";
+import type { Api } from "datatables.net";
 import "datatables.net-dt/css/dataTables.dataTables.css";
-
-type DataTableCtor = new (table: HTMLTableElement, options?: Options) => Api<any>;
-
-let dataTableCtor: Promise<DataTableCtor> | null = null;
-
-/** Lazily load the DataTables library only when a table is actually rendered,
- *  so the (large) DataTables module is not parsed/executed during the initial
- *  chat-history load and does not block the main thread (which was causing the
- *  first `/api/v1/conversations` request to "stall"). */
-function loadDataTable(): Promise<DataTableCtor> {
-  if (!dataTableCtor) {
-    dataTableCtor = import("datatables.net-dt").then((m) => m.default);
-  }
-  return dataTableCtor;
-}
+import { loadDataTable } from "./dataTables";
 
 /**
  * Wraps a markdown-rendered <table> and upgrades it to an open-source
@@ -35,7 +21,7 @@ export const ChatDataTable = memo(function ChatDataTable({
   children: ReactNode;
 }) {
   const tableRef = useRef<HTMLTableElement>(null);
-  const dtRef = useRef<Api<any> | null>(null);
+  const dtRef = useRef<Api<unknown> | null>(null);
   const pendingRef = useRef(false);
 
   useEffect(() => {

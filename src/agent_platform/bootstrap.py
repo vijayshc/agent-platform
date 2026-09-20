@@ -92,6 +92,12 @@ def initialize_runtime() -> None:
     migrate_resource_grants()
     _reconcile_runs()
     unpublish_scripted_definitions()
+    # Seed the editable system-prompt skill that teaches agents how to render
+    # cached tool data. Never overwrites an existing package, so admin edits
+    # survive every restart.
+    from src.agent_platform.runtime.tool_data import ensure_prompt_skill
+
+    ensure_prompt_skill()
 
 
 #: Tenancy columns every module store's ensure entry point must guarantee, per
