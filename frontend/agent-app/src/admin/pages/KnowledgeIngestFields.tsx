@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { AdminField } from "../adminShared";
 import { chunkingFieldErrors, type ColumnRole, type IngestMeta } from "./knowledgeIngest";
 
@@ -37,7 +38,10 @@ export function ChunkingFields({
         </select>
       </AdminField>
       <div className="aa-ingest-grid">
-        <AdminField label="Chunk Size (characters)" hint="100–8000. Larger keeps more context; smaller is more precise.">
+        <AdminField
+          label="Chunk Size (characters)"
+          hint={errors.size ? undefined : "100–8000. Larger keeps more context; smaller is more precise."}
+        >
           <input
             type="number"
             min={100}
@@ -50,7 +54,10 @@ export function ChunkingFields({
           />
           {errors.size && <span className="aa-field-error" role="alert">{errors.size}</span>}
         </AdminField>
-        <AdminField label="Chunk Overlap" hint="Characters shared between neighbouring chunks.">
+        <AdminField
+          label="Chunk Overlap"
+          hint={errors.overlap ? undefined : "Characters shared between neighbouring chunks."}
+        >
           <input
             type="number"
             min={0}
@@ -110,10 +117,11 @@ export function ColumnRolePicker({ columns, roles, onSet, onSetAll }: ColumnRole
                     type="button"
                     title={option.hint}
                     aria-pressed={role === option.id}
-                    className={`aa-colmap-btn${role === option.id ? " active" : ""}${option.id === "metadata" ? " meta" : ""}`}
+                    className={`aa-colmap-btn ${option.id}${role === option.id ? " active" : ""}`}
                     onClick={() => onSet(column, option.id)}
                     data-testid={`knowledge-col-${column}-${option.id}`}
                   >
+                    {role === option.id && <Check size={11} />}
                     {option.label}
                   </button>
                 ))}

@@ -33,26 +33,10 @@ export function ToolDataProvider({
 
 export function useToolData(callId: string): ToolDataPayload | undefined {
   const { map } = useContext(ToolDataContext);
-  const exact = map[callId];
-  if (exact) return exact;
-  // The reference is `D1`; a model that drops the letter (`1`) still resolves.
-  if (/^\d+$/.test(callId)) {
-    const byNumber = map[`D${callId}`];
-    if (byNumber) return byNumber;
-  }
-  // A model may append a label to the reference (`D1_line`). Peel trailing
-  // `_segment` pieces until a cached result matches.
-  let candidate = callId;
-  while (candidate.includes("_")) {
-    candidate = candidate.slice(0, candidate.lastIndexOf("_"));
-    if (!candidate) break;
-    const found = map[candidate];
-    if (found) return found;
-  }
-  // Anything else is a reference that resolved to nothing. It stays unresolved
-  // so the block reports missing data; guessing "the only cached table" here
-  // would silently draw a chart of data the model never referenced.
-  return undefined;
+  // Exactly the reference the marker printed, or nothing. A near-miss (`1`, or
+  // `D1_line`) is a reference the model wrote wrong; resolving it to whatever
+  // looked closest is how a chart ends up showing data nobody asked for.
+  return map[callId];
 }
 
 /** True while the turn is still streaming (data may simply not have arrived). */

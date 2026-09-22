@@ -198,7 +198,10 @@ export function applyEvent(msg: ChatMessage, ev: SseEvent): ChatMessage {
       if (hasPrev && next.content) {
         next.swapping = true;
       } else if (hasPrev && !next.content) {
+        // No authoritative reply: fall back to the streamed text, which the
+        // server never validated. Mark it so it is rendered as plain markdown.
         next.content = next.prevContent || "";
+        next.contentUnvalidated = true;
         next.prevContent = undefined;
         next.swapping = false;
       }

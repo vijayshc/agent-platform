@@ -184,8 +184,16 @@ function LiveTail({ text }: { text: string }) {
   );
 }
 
-export function StreamingMarkdown({ content, streaming }: { content: string; streaming?: boolean }) {
-  if (!streaming) return <MarkdownRenderer content={content} />;
+export function StreamingMarkdown({
+  content,
+  streaming,
+  plain,
+}: {
+  content: string;
+  streaming?: boolean;
+  plain?: boolean;
+}) {
+  if (!streaming) return <MarkdownRenderer content={content} plain={plain} />;
 
   const { frozenBlocks, live, liveIsFence } = splitStreaming(content);
   const tail = live ? <LiveTail text={live} /> : null;
@@ -196,7 +204,7 @@ export function StreamingMarkdown({ content, streaming }: { content: string; str
     <div className="chat-markdown">
       {frozenBlocks.map((block, i) => (
         <div key={i} className="aa-md-block">
-          <MarkdownRenderer content={block} asFragment />
+          <MarkdownRenderer content={block} asFragment plain={plain} />
         </div>
       ))}
       {fenceKind ? (

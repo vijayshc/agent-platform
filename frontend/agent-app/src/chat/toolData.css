@@ -478,3 +478,28 @@ table.td-table thead th.dt-ordering-desc {
   min-width: 52px;
   text-align: right;
 }
+
+/* A block the server refused to draw. It states why instead of showing a chart
+   that would have been a guess. */
+.td-card-error {
+  border-color: color-mix(in srgb, var(--warning-color, #f59e0b) 45%, var(--border-color));
+  border-style: dashed;
+}
+
+.td-card-error .td-empty {
+  color: var(--text-secondary);
+}
+
+/* Notes the server attached: how rows were grouped, whether data was clipped. */
+.td-card-notes {
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px 10px;
+  border-top: 1px dashed var(--border-color);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.td-card-notes li::before {
+  content: "· ";
+}

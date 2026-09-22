@@ -20,7 +20,7 @@ import {
 } from "recharts";
 import { chartAxisProps, chartGridProps, useChartPalette, type ChartPalette } from "../admin/chartTheme";
 import { ChartTooltip } from "../shared/ChartTooltip";
-import { buildChartModel, niceDomain, plottedValues, toNumber, valueFormatter, type ChartModel } from "./chartData";
+import { buildChartModel, niceDomain, plottedValues, valueFormatter, type ChartModel } from "./chartData";
 import type { ChartSpec, ToolDataPayload } from "./toolDataTypes";
 
 const MAX_TICK_LABEL = 16;
@@ -31,15 +31,10 @@ function truncate(value: unknown): string {
   return text.length > MAX_TICK_LABEL ? `${text.slice(0, MAX_TICK_LABEL - 1)}…` : text;
 }
 
-/** True when every plotted number is a whole number, so the axis must not
- *  invent fractions (`0 / 0.25 / 0.5 …` on a count axis). */
-function integerAxis(model: ChartModel): boolean {
-  return model.data.every((row) =>
-    model.valueKeys.every((key) => {
-      const value = Number(row[key]);
-      return !Number.isFinite(value) || Number.isInteger(value);
-    }),
-  );
+/** A plotted value. The tool declared these columns numeric, so a non-number is
+ *  a gap, not something to coerce. */
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function ChartLegend({ items }: { items: Array<{ label: string; color: string }> }) {
@@ -153,7 +148,7 @@ function ScatterView({
 }) {
   const pointsFor = (key: string) =>
     model.data
-      .map((row) => ({ x: toNumber(row[model.xKey]), y: toNumber(row[key]) }))
+      .map((row) => ({ x: asNumber(row[model.xKey]), y: asNumber(row[key]) }))
       .filter((point): point is { x: number; y: number } => point.x != null && point.y != null);
   return (
     <>
@@ -165,7 +160,7 @@ function ScatterView({
             dataKey="x"
             name={model.xLabel}
             {...chartAxisProps(p)}
-            allowDecimals={!integerAxis(model)}
+            allowDecimals={!model.integerValues}
             tickFormatter={(v) => format(Number(v))}
           />
           <YAxis
@@ -234,7 +229,7 @@ function CartesianView({
     ...(horizontal
       ? {
           tickFormatter: (v: number) => format(Number(v)),
-          allowDecimals: !integerAxis(model),
+          allowDecimals: !model.integerValues,
           domain: [valueMin, valueMax] as [number, number],
         }
       : {
@@ -252,7 +247,7 @@ function CartesianView({
       : {
           width: 62,
           tickFormatter: (v: number) => format(Number(v)),
-          allowDecimals: !integerAxis(model),
+          allowDecimals: !model.integerValues,
           domain: [valueMin, valueMax] as [number, number],
         }),
   };
@@ -320,6 +315,8 @@ function CartesianView({
     ),
   );
 
+  // Dispatch, not selection: `model.type` is one of bar/hbar/area/line by the
+  // time a cartesian chart is drawn, and buildChartModel rejects anything else.
   const Chart = isBar ? BarChart : isArea ? AreaChart : LineChart;
   return (
     <div className={`td-cartesian${model.yLabel ? " has-ylabel" : ""}`}>
@@ -359,11 +356,11 @@ export function ToolChart({ data, spec }: { data: ToolDataPayload; spec: ChartSp
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const title = spec.title || `${model.type} · ${data.tool_name}`;
   const isPie = model.type === "pie" || model.type === "donut";
-  // `showLegend` defaults to on for a pie/donut (its legend carries values and
-  // shares) and for any chart with more than one series; `showGrid` defaults to
-  // on. Both are model-authored spec fields.
-  const showLegend = spec.showLegend ?? (isPie || model.series.length >= 2);
+  // Every field the renderer needs was resolved and written by the server; there
+  // is nothing to default here.
+  const showLegend = Boolean(spec.showLegend);
   const showGrid = spec.showGrid !== false;
+  const diagnostics = spec.diagnostics ?? [];
   const meta = isPie
     ? `${data.total_rows.toLocaleString()} row${data.total_rows === 1 ? "" : "s"} · ${model.data.length} group${
         model.data.length === 1 ? "" : "s"
@@ -431,6 +428,13 @@ export function ToolChart({ data, spec }: { data: ToolDataPayload; spec: ChartSp
         <div className="td-card-foot">
           Showing {data.returned_rows.toLocaleString()} of {data.total_rows.toLocaleString()} rows (cache limit).
         </div>
+      ) : null}
+      {diagnostics.length ? (
+        <ul className="td-card-notes" aria-label="Chart notes">
+          {diagnostics.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
       ) : null}
     </figure>
   );

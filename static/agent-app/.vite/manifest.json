@@ -1,6 +1,6 @@
 {
   "index.html": {
-    "file": "assets/index-DoZrSy5d.js",
+    "file": "assets/index-CoFEtepL.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -8,7 +8,7 @@
       "node_modules/datatables.net-dt/js/dataTables.dataTables.mjs"
     ],
     "css": [
-      "assets/index-CGXhAp16.css"
+      "assets/index-nCVpizzy.css"
     ]
   },
   "node_modules/datatables.net-dt/js/dataTables.dataTables.mjs": {

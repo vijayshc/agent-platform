@@ -27,8 +27,19 @@ export function ToolDataTable({ data, spec }: { data: ToolDataPayload; spec: Tab
       .then((Ctor) => {
         if (cancelled || !tableRef.current || dtRef.current) return;
         const options: Options = {
-          data: data.rows,
-          columns: data.columns.map((column) => ({ title: column })),
+          // A null cell is a missing value, not the word "null".
+          data: data.rows.map((row) => row.map((cell) => (cell === null ? "" : cell))),
+          // The declared type drives sorting and alignment; nothing is inferred
+          // from how a value happens to look.
+          columns: data.columns.map((column) => ({
+            title: column.name,
+            type:
+              column.type === "integer" || column.type === "number" || column.type === "decimal"
+                ? "num"
+                : column.type === "date" || column.type === "datetime"
+                  ? "date"
+                  : "string",
+          })),
           autoWidth: false,
           deferRender: true,
           order: [],

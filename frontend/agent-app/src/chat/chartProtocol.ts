@@ -102,21 +102,27 @@ function blockFromBody(body: string[]): RichBlock | null {
   if (start < 0) return null;
   const match = TOKEN.exec(body[start]);
   if (!match) {
-    // Defensive: a pure JSON fence that names its own call id.
-    const json = parseObject(body.join("\n"));
-    const callId = typeof json.call_id === "string" ? json.call_id : "";
-    if (!callId) return null;
-    const isTable = String(json.kind ?? "chart").toLowerCase() === "table";
-    return isTable
-      ? { kind: "table", callId, spec: json as TableSpec }
-      : { kind: "chart", callId, spec: json as ChartSpec };
+    // Not a placeholder block: the fence is opaque and renders as code. The only
+    // documented forms are a placeholder on the first line of a chart/table
+    // fence, or a bare placeholder line; anything else is prose.
+    return null;
   }
   const isChart = match[1].toUpperCase() === "CHART";
   const rest = [match[3] ?? "", ...body.slice(start + 1)].join("\n");
   const spec = parseObject(rest);
   return isChart
-    ? { kind: "chart", callId: match[2], spec: spec as ChartSpec }
-    : { kind: "table", callId: match[2], spec: spec as TableSpec };
+    ? { kind: "chart", callId: match[2], spec: asSpec<ChartSpec>(spec) }
+    : { kind: "table", callId: match[2], spec: asSpec<TableSpec>(spec) };
+}
+
+/**
+ * The parsed JSON as its wire contract. The server validates and normalises
+ * every block before the reply is streamed or stored, so a block that is
+ * rendered against data always carries a complete spec; this cast only crosses
+ * the JSON boundary, it does not paper over a missing field.
+ */
+function asSpec<T>(value: Record<string, unknown>): T {
+  return value as unknown as T;
 }
 
 /** A block written with no spec: a bare `#CHART_D1` / `#TABLE_D1` line. */
@@ -214,8 +220,8 @@ export function splitRichContent(content: string): RichSegment[] {
       flush();
       segments.push(
         isChart
-          ? { kind: "chart", callId, spec: spec as ChartSpec }
-          : { kind: "table", callId, spec: spec as TableSpec },
+          ? { kind: "chart", callId, spec: asSpec<ChartSpec>(spec) }
+          : { kind: "table", callId, spec: asSpec<TableSpec>(spec) },
       );
       continue;
     }

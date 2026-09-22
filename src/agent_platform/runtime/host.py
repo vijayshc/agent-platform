@@ -32,7 +32,11 @@ from src.agent_platform.runtime.events import (
     sse_payload,
 )
 from src.agent_platform.runtime.hitl import normalize_decisions
-from src.agent_platform.runtime.tool_data import resolve_tool_data, scope_from_namespace
+from src.agent_platform.runtime.tool_data import (
+    normalize_reply,
+    resolve_tool_data,
+    scope_from_namespace,
+)
 from src.agent_platform.runtime.workspace import (
     ensure_workspace_baseline,
     seed_workspace,
@@ -394,8 +398,7 @@ class RuntimeHost:
                     raise RuntimeError("cancelled")
 
                 if pending:
-                    final_text = redact_paths(final_text)
-                    tool_data = resolve_tool_data(final_text, tool_scope)
+                    final_text, tool_data = _prepare_reply(final_text, tool_scope)
                     RunStore.set_pending(run_id, pending)
                     if conversation_id:
                         _persist_assistant_message(
@@ -424,8 +427,7 @@ class RuntimeHost:
                     if not final_text.strip():
                         raise NoAnswerProduced(_EMPTY_ANSWER)
 
-                    final_text = redact_paths(final_text)
-                    tool_data = resolve_tool_data(final_text, tool_scope)
+                    final_text, tool_data = _prepare_reply(final_text, tool_scope)
                     RunStore.finish(run_id, "success", final_reply=final_text)
                     if conversation_id:
                         _persist_assistant_message(
@@ -520,6 +522,24 @@ async def _thread_message_ids(graph: Any, config: dict[str, Any]) -> set[str]:
         return set()
     messages = (getattr(state, "values", None) or {}).get("messages") or []
     return {str(m.id) for m in messages if getattr(m, "id", None)}
+
+
+def _prepare_reply(
+    final_text: str,
+    tool_scope: Any,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Redact, validate the reply's chart specs against the cached data, package.
+
+    Validation happens here — on the server, before the reply is streamed or
+    stored — so the browser only ever receives specs that already fit the data
+    they name. A spec that cannot be drawn is rewritten into an explicit error
+    block; the runtime never substitutes columns or a chart type to make it work.
+    """
+    text = redact_paths(final_text)
+    text, report = normalize_reply(text, tool_scope)
+    if any(item.get("status") != "ok" for item in report):
+        logger.warning("chart/table blocks in this reply: %s", report)
+    return text, resolve_tool_data(text, tool_scope)
 
 
 def _persist_assistant_message(

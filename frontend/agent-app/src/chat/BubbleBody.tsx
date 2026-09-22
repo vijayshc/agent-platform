@@ -13,12 +13,16 @@ export function BubbleBody({
   content,
   prevContent,
   streaming,
+  plain,
   toolData,
   onSettle,
 }: {
   content: string;
   prevContent?: string;
   streaming?: boolean;
+  /** `content` is raw streamed text the server never validated: render it as
+   *  plain markdown so no chart block in it is drawn. */
+  plain?: boolean;
   toolData?: ToolDataPayload[];
   onSettle?: () => void;
 }) {
@@ -100,12 +104,15 @@ export function BubbleBody({
         <div className="aa-swap-stage" ref={stageRef}>
           {prev ? (
             <div key={prev} className="aa-bubble-prev" ref={prevRef} aria-hidden={swapping || undefined}>
-              <StreamingMarkdown content={prev} />
+              {/* `prev` is the superseded pre-tool stream, which the server never
+                  validated. It is rendered as plain markdown so a raw chart spec
+                  in it can never be turned into a chart. */}
+              <StreamingMarkdown content={prev} plain />
             </div>
           ) : null}
           {showCur ? (
             <div className="aa-bubble-cur" ref={curRef}>
-              <StreamingMarkdown content={cur} streaming={streaming} />
+              <StreamingMarkdown content={cur} streaming={streaming} plain={plain} />
             </div>
           ) : null}
         </div>

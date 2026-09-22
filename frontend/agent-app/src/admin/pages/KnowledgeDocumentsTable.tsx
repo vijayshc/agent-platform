@@ -85,24 +85,24 @@ export function KnowledgeDocumentsTable({
   onDelete: (doc: KnownDoc) => void;
 }) {
   const columns: Column<KnownDoc>[] = [
-    { key: "name", header: "Document", sortValue: (d) => d.name, render: (d) => {
+    { key: "name", header: "Document", className: "aa-doc-col", sortValue: (d) => d.name, render: (d) => {
       const { label, title } = describeChunking(d);
       return (
         <span className="aa-doc-cell">
-          <span>
+          <span className="aa-doc-name">
             <span style={{ fontWeight: 600 }}>{d.name}</span>
             {typeof d.chunk_count === "number" && (
-              <span className="aa-muted" style={{ marginLeft: 6 }}>({d.chunk_count} chunks)</span>
+              <span className="aa-muted aa-doc-chunk-count" style={{ marginLeft: 6 }}>({d.chunk_count} chunks)</span>
             )}
           </span>
           <span className="aa-muted aa-doc-chunking" title={title}>{label}</span>
         </span>
       );
     } },
-    { key: "content_type", header: "Type", render: (d) => d.content_type || <span className="aa-muted">—</span>, sortValue: (d) => d.content_type },
-    { key: "status", header: "Status", render: (d) => <AdminStatusPill status={d.status} />, sortValue: (d) => d.status },
-    { key: "tags", header: "Tags", render: (d) => <AdminTags items={d.tags} />, sortValue: (d) => d.tags.join(",") },
-    { key: "created_at", header: "Added", className: "aa-table-date", render: (d) => (d.created_at ? formatDate(d.created_at) : <span className="aa-muted">—</span>), sortValue: (d) => (d.created_at ? new Date(d.created_at).getTime() : 0) },
+    { key: "content_type", header: "Type", width: "70px", render: (d) => d.content_type || <span className="aa-muted">—</span>, sortValue: (d) => d.content_type },
+    { key: "status", header: "Status", width: "120px", render: (d) => <AdminStatusPill status={d.status} />, sortValue: (d) => d.status },
+    { key: "tags", header: "Tags", width: "150px", render: (d) => <AdminTags items={d.tags} />, sortValue: (d) => d.tags.join(",") },
+    { key: "created_at", header: "Added", width: "170px", className: "aa-table-date", render: (d) => (d.created_at ? formatDate(d.created_at) : <span className="aa-muted">—</span>), sortValue: (d) => (d.created_at ? new Date(d.created_at).getTime() : 0) },
     { key: "actions", header: "Actions", className: "aa-table-actions", width: "120px", render: (d) => {
       // Viewing/using the document is available to everyone who can see it;
       // Access/Delete are owner-or-admin only (`can_manage`).
@@ -151,6 +151,7 @@ export function KnowledgeDocumentsTable({
       rows={docs}
       rowKey={(d) => d.id}
       columns={columns}
+      tableClassName="aa-knowledge-table"
       searchText={(d) => `${d.name} ${d.content_type} ${d.tags.join(" ")} ${describeChunking(d).label}`}
       searchPlaceholder="Search documents…"
       emptyMessage="No documents yet. Upload a file or paste text to get started."

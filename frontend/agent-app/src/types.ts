@@ -174,6 +174,10 @@ export interface ChatMessage {
   swapping?: boolean;
   /** The run finished successfully but the model returned no text at all. */
   emptyReply?: boolean;
+  /** True when `content` is raw streamed text the server never validated (the
+   *  error path restores the pre-tool stream). It is rendered as plain markdown
+   *  so a chart spec in it cannot be turned into a chart. */
+  contentUnvalidated?: boolean;
   /** Full cached tables behind this turn's #CHART_ / #TABLE_ placeholders. */
   toolData?: ToolDataPayload[];
 }

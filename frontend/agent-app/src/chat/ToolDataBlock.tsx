@@ -35,6 +35,31 @@ export function ToolDataBlock({ block }: { block: RichBlock }) {
       </figure>
     );
   }
+
+  // The server refuses to draw a spec it cannot verify. Both block kinds carry
+  // the reason the same way, and it is always shown rather than a substitute.
+  if (block.spec.error) {
+    return (
+      <figure
+        className="td-card td-card-error"
+        data-testid={`${block.kind}-error-${block.callId}`}
+      >
+        <figcaption className="td-card-head">
+          <div className="td-card-titles">
+            <span className="td-card-title">
+              {block.kind === "chart" ? "Chart not drawn" : "Table not drawn"}
+            </span>
+            <span className="td-card-sub">{data.tool_name}</span>
+          </div>
+        </figcaption>
+        <div className="td-empty">
+          <AlertTriangle size={14} />
+          <span>{block.spec.error}</span>
+        </div>
+      </figure>
+    );
+  }
+
   return block.kind === "table" ? (
     <ToolDataTable data={data} spec={block.spec} />
   ) : (

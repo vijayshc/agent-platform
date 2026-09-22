@@ -1,11 +1,20 @@
-/** Turn a cached markdown table + a model-authored spec into chart-ready data.
+/** Turn a typed cached table + a validated spec into chart-ready data.
  *
- * The model names columns in prose; the cache holds raw strings. Everything
- * here is about being forgiving: match columns case-insensitively, coerce
- * "1,234", "12%", "(50)" and "$5" to numbers, aggregate duplicate categories,
- * and fall back to sensible defaults when the spec is vague.
+ * The server has already checked that every column the spec names exists and
+ * has a type that fits its role, and has filled in every default. This module
+ * therefore does exactly one thing: group and aggregate the declared values for
+ * the plot. It never guesses a column, a type, a chart type or an aggregation —
+ * a chart that shows something other than what was asked for is worse than a
+ * chart that says it cannot be drawn.
  */
-import type { ChartSpec, ChartType, ToolDataPayload } from "./toolDataTypes";
+import type {
+  ChartSpec,
+  ChartType,
+  ColumnType,
+  ToolDataColumn,
+  ToolDataPayload,
+  ToolDataValue,
+} from "./toolDataTypes";
 
 export interface ChartSeriesDef {
   key: string;
@@ -14,8 +23,9 @@ export interface ChartSeriesDef {
 }
 
 export interface ChartModel {
-  data: Array<Record<string, string | number>>;
+  data: Array<Record<string, ToolDataValue>>;
   xKey: string;
+  xType: ColumnType;
   valueKeys: string[];
   series: ChartSeriesDef[];
   type: ChartType;
@@ -24,56 +34,26 @@ export interface ChartModel {
   colorBy: "category" | "series" | "single";
   xLabel: string;
   yLabel: string;
+  /** Every plotted value is a whole number, so the axis must not show fractions. */
+  integerValues: boolean;
   /** Human-readable reason the chart cannot be drawn, if any. */
   empty: string | null;
 }
 
-const DATE_RE = /^\d{4}[-/]\d{1,2}([-/]\d{1,2})?([T ]\d{1,2}:\d{2})?/;
-
-function normalizeName(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+/** A declared numeric value. A string is never coerced: the tool said what it is. */
+function asNumber(value: ToolDataValue | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-export function resolveColumn(columns: string[], name: unknown): string | undefined {
-  if (typeof name !== "string" || !name.trim()) return undefined;
-  const wanted = name.trim();
-  const exact = columns.find((c) => c === wanted);
-  if (exact) return exact;
-  const lower = columns.find((c) => c.toLowerCase() === wanted.toLowerCase());
-  if (lower) return lower;
-  const norm = normalizeName(wanted);
-  return columns.find((c) => normalizeName(c) === norm);
-}
-
-export function toNumber(raw: unknown): number | null {
-  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
-  if (raw == null) return null;
-  let text = String(raw).trim();
-  if (!text) return null;
-  let negative = false;
-  if (/^\(.*\)$/.test(text)) {
-    negative = true;
-    text = text.slice(1, -1);
-  }
-  text = text.replace(/[$€£¥,\s]/g, "").replace(/%$/, "");
-  if (!text) return null;
-  const value = Number(text);
-  if (!Number.isFinite(value)) return null;
-  return negative ? -value : value;
-}
-
-/** Round ``max`` up to a "nice" number a reader can tick evenly.
- *
- * A count axis whose values are all ``1`` must not become ``0…4``: that is what
- * a fixed tick count plus whole-number ticks produces, and it leaves every bar
- * squat against the baseline. Choosing the ceiling from the data keeps the plot
- * filled while still landing on 0/2/4/8-style ticks. */
+/** Round ``max`` up to a "nice" number a reader can tick evenly. */
 function niceCeil(max: number, tickCount = 5): number {
   if (!Number.isFinite(max) || max <= 0) return 1;
   const rough = max / tickCount;
   const magnitude = 10 ** Math.floor(Math.log10(rough));
   const normalized = rough / magnitude;
-  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10) * magnitude;
+  const step =
+    (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10) *
+    magnitude;
   return Math.ceil(max / step) * step;
 }
 
@@ -97,11 +77,11 @@ export function plottedValues(model: ChartModel): number[] {
   for (const row of model.data) {
     if (model.stacked) {
       let total = 0;
-      for (const key of model.valueKeys) total += toNumber(row[key]) ?? 0;
+      for (const key of model.valueKeys) total += asNumber(row[key]) ?? 0;
       values.push(total);
     } else {
       for (const key of model.valueKeys) {
-        const value = toNumber(row[key]);
+        const value = asNumber(row[key]);
         if (value != null) values.push(value);
       }
     }
@@ -109,54 +89,10 @@ export function plottedValues(model: ChartModel): number[] {
   return values;
 }
 
-const IDENTIFIER_TOKEN =
-  /(^|[^a-z0-9])(id|uuid|guid|key|code|zip|postal|phone|ssn|isbn|ref|reference|year|yr|quarter|qtr|month|mon|week|wk|day)($|[^a-z0-9])/i;
-const IDENTIFIER_SUFFIX = /(?:Id|ID|Uuid|UUID|Guid|GUID|Key|Code|Ref|Year|Month|Week|Day)$/;
-const IDENTIFIER_EXACT = /^(id|uuid|guid|zip|zipcode|postalcode|phone|ssn|isbn)$/i;
-
-/** A number that is not a measure: an identifier (`order_id`, `zipcode`) or a
- *  calendar part (`year`, `month`). Charting one by default would plot a key or
- *  a date component as if it were a quantity; an explicit `y` still plots it. */
-export function looksLikeIdentifier(name: string): boolean {
-  const trimmed = name.trim();
-  if (!trimmed) return true;
-  return (
-    IDENTIFIER_TOKEN.test(trimmed) ||
-    IDENTIFIER_SUFFIX.test(trimmed) ||
-    IDENTIFIER_EXACT.test(trimmed.replace(/[^a-z0-9]/gi, ""))
-  );
-}
-
-function numericColumns(columns: string[], rows: string[][]): string[] {
-  return columns.filter((column, index) => {
-    if (looksLikeIdentifier(column)) return false;
-    let seen = 0;
-    let numeric = 0;
-    for (const row of rows) {
-      const cell = row[index];
-      if (cell == null || !String(cell).trim()) continue;
-      seen += 1;
-      if (toNumber(cell) !== null) numeric += 1;
-    }
-    return seen > 0 && numeric / seen >= 0.6;
-  });
-}
-
-function isTemporal(values: string[]): boolean {
-  const sample = values.filter((v) => String(v).trim()).slice(0, 30);
-  if (!sample.length) return false;
-  const hits = sample.filter((v) => DATE_RE.test(String(v).trim())).length;
-  return hits / sample.length >= 0.7;
-}
-
-function asStringList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((v) => String(v));
-  if (typeof value === "string" && value.trim()) return [value];
-  return [];
-}
-
-function aggregateValues(values: number[], mode: string | undefined): number {
-  if (!values.length) return 0;
+function aggregateValues(values: number[], mode: ChartSpec["aggregate"]): number | null {
+  // A group with no value is a gap, not a zero: plotting 0 would state a fact the
+  // data does not contain.
+  if (!values.length) return null;
   switch (mode) {
     case "avg":
       return values.reduce((a, b) => a + b, 0) / values.length;
@@ -166,108 +102,143 @@ function aggregateValues(values: number[], mode: string | undefined): number {
       return Math.min(...values);
     case "max":
       return Math.max(...values);
+    case "none":
+      return values[0];
     default:
       return values.reduce((a, b) => a + b, 0);
   }
 }
 
-function normalizeType(raw: string | undefined, model: { series: ChartSeriesDef[]; xValues: string[] }): ChartType {
-  const value = String(raw ?? "").toLowerCase();
-  if (value === "stackedbar") return "stackedBar";
-  if (value === "stackedarea") return "stackedArea";
-  if (["line", "area", "bar", "hbar", "pie", "donut", "scatter"].includes(value)) {
-    return value as ChartType;
+/** Order two x values by the type the tool declared for the column. */
+function compareX(a: ToolDataValue | undefined, b: ToolDataValue | undefined, type: ColumnType): number {
+  if (type === "date" || type === "datetime") {
+    const left = Date.parse(String(a ?? ""));
+    const right = Date.parse(String(b ?? ""));
+    if (!Number.isNaN(left) && !Number.isNaN(right)) return left - right;
   }
-  if (model.series.length > 1) return "line";
-  return isTemporal(model.xValues) ? "line" : "bar";
+  if (type === "integer" || type === "number" || type === "decimal") {
+    const left = asNumber(a);
+    const right = asNumber(b);
+    if (left != null && right != null) return left - right;
+  }
+  // ISO times and labels sort lexicographically.
+  return String(a ?? "").localeCompare(String(b ?? ""));
 }
 
-export function buildChartModel(data: ToolDataPayload, spec: ChartSpec, palette: string[]): ChartModel {
+/** The chart types the renderer knows how to draw. The server validates the
+ *  spec against the same set, so anything else is a contract violation and is
+ *  reported rather than drawn as some other chart. */
+const KNOWN_TYPES: ChartType[] = ["line", "area", "bar", "hbar", "pie", "donut", "scatter"];
+/** Aggregations the server can write. ``none`` is only ever written for a
+ *  scatter, where no grouping happens. */
+const KNOWN_AGGREGATES: ChartSpec["aggregate"][] = ["sum", "avg", "count", "min", "max", "none"];
+
+/** A decimal cell for plotting: parsed to a float, because a plot is inherently
+ *  approximate. The table keeps the exact string. */
+function decimalToNumber(value: ToolDataValue): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+export function buildChartModel(
+  data: ToolDataPayload,
+  spec: ChartSpec,
+  palette: string[],
+): ChartModel {
+  const columns = data.columns ?? [];
+  const byName = new Map(columns.map((column) => [column.name, column]));
   const base: ChartModel = {
     data: [],
-    xKey: "",
+    xKey: spec.x,
+    xType: byName.get(spec.x)?.type ?? "unknown",
     valueKeys: [],
     series: [],
-    type: "bar",
+    type: spec.type,
     stacked: Boolean(spec.stacked),
     smooth: spec.smooth !== false,
-    colorBy: "category",
-    xLabel: "",
-    yLabel: "",
+    colorBy: spec.colorBy,
+    xLabel: spec.xLabel || spec.x,
+    yLabel: spec.yLabel || (spec.y.length === 1 ? spec.y[0] : ""),
+    integerValues: false,
     empty: null,
   };
-  const columns = data.columns ?? [];
-  const rows = data.rows ?? [];
-  if (!columns.length || !rows.length) {
+  // A spec the server would not have produced is a contract violation. Drawing
+  // the nearest chart instead would be exactly the silent substitution the
+  // validation exists to prevent.
+  if (!KNOWN_TYPES.includes(spec.type)) {
+    return { ...base, empty: `Unsupported chart type “${spec.type}”.` };
+  }
+  if (!KNOWN_AGGREGATES.includes(spec.aggregate)) {
+    return { ...base, empty: `Unsupported aggregation “${spec.aggregate}”.` };
+  }
+  if (spec.type !== "scatter" && spec.aggregate === "none") {
+    return { ...base, empty: "This chart asks for no aggregation on grouped data." };
+  }
+  if (spec.type === "scatter" && spec.series) {
+    return { ...base, empty: "A scatter chart plots one point per row and cannot use a series." };
+  }
+  if (!columns.length || !data.rows.length) {
     return { ...base, empty: "This result has no rows to chart." };
   }
 
-  const numeric = numericColumns(columns, rows);
-  const requestedX = typeof spec.x === "string" && spec.x.trim() ? spec.x.trim() : "";
-  const resolvedX = resolveColumn(columns, requestedX);
-  if (requestedX && !resolvedX) {
-    // A named column that does not exist is a spec error, not a licence to
-    // chart a different one: falling back would draw the wrong axis.
-    return {
-      ...base,
-      empty: `The x column “${requestedX}” is not in this result (${columns.join(", ")}).`,
-    };
+  const xColumn = byName.get(spec.x);
+  if (!xColumn) {
+    return { ...base, empty: `The x column “${spec.x}” is not in this result.` };
   }
-  const xKey = resolvedX || columns.find((c) => !numeric.includes(c)) || columns[0];
-  const xIndex = columns.indexOf(xKey);
-  const seriesKey = resolveColumn(columns, spec.series) || null;
-
-  const requestedY = asStringList(spec.y);
-  let valueKeys = requestedY
-    .map((name) => resolveColumn(columns, name))
-    .filter((name): name is string => Boolean(name) && name !== xKey && name !== seriesKey);
-  if (requestedY.length && !valueKeys.length) {
-    return {
-      ...base,
-      xKey,
-      empty: `None of the requested y columns (${requestedY.join(", ")}) can be plotted from this result.`,
-    };
+  const valueColumns: ToolDataColumn[] = [];
+  for (const name of spec.y) {
+    const column = byName.get(name);
+    if (!column) {
+      return { ...base, empty: `The y column “${name}” is not in this result.` };
+    }
+    valueColumns.push(column);
   }
-  if (!valueKeys.length) {
-    valueKeys = numeric.filter((c) => c !== xKey && c !== seriesKey);
-  }
-  if (!valueKeys.length) {
-    return { ...base, xKey, empty: "No numeric column was found to plot." };
+  const seriesColumn = spec.series ? byName.get(spec.series) : undefined;
+  if (spec.series && !seriesColumn) {
+    return { ...base, empty: `The series column “${spec.series}” is not in this result.` };
   }
 
-  const records: Array<Record<string, string>> = rows.map((row) => {
-    const record: Record<string, string> = {};
+  const valueKeys = valueColumns.map((column) => column.name);
+  const records: Array<Record<string, ToolDataValue>> = data.rows.map((row) => {
+    const record: Record<string, ToolDataValue> = {};
     columns.forEach((column, index) => {
-      record[column] = row[index] ?? "";
+      const cell = row[index] ?? null;
+      // A decimal travels as an exact string; a plot needs a number.
+      record[column.name] =
+        column.type === "decimal" ? decimalToNumber(cell) : cell;
     });
-    record[xKey] = String(row[xIndex] ?? "");
     return record;
   });
 
-  const xValues = records.map((record) => record[xKey]);
-  const scatter = String(spec.type ?? "").toLowerCase() === "scatter";
-  let chartData: Array<Record<string, string | number>>;
+  let chartData: Array<Record<string, ToolDataValue>>;
   let keys = valueKeys;
 
-  if (seriesKey) {
-    // Pivot: one property per distinct value of the series column. When more
-    // than one measure is asked for, each (series value × measure) pair becomes
-    // its own series, so no measure is silently dropped.
+  if (seriesColumn) {
+    // Pivot: one property per distinct value of the series column. With more
+    // than one measure, each (series value × measure) pair is its own series, so
+    // no measure is silently dropped.
     const seriesValues: string[] = [];
     const labelFor = (seriesValue: string, yKey: string) =>
       valueKeys.length > 1 ? `${seriesValue} · ${yKey}` : seriesValue;
     const byX = new Map<
       string,
-      { row: Record<string, string | number>; values: Map<string, number[]> }
+      { row: Record<string, ToolDataValue>; values: Map<string, number[]> }
     >();
     for (const record of records) {
-      const seriesValue = String(record[seriesKey] ?? "").trim() || "(blank)";
-      const x = record[xKey];
-      const entry = byX.get(x) ?? { row: { [xKey]: x }, values: new Map<string, number[]>() };
+      const seriesValue = String(record[seriesColumn.name] ?? "").trim() || "(blank)";
+      const rawX = record[xColumn.name] ?? null;
+      // Keyed by type as well as text, matching the server's category count: a
+      // mixed column holding 1 and "1" is two categories, not one.
+      const x = `${typeof rawX}:${String(rawX ?? "")}`;
+      const entry = byX.get(x) ?? { row: { [xColumn.name]: rawX }, values: new Map() };
       for (const yKey of valueKeys) {
         const label = labelFor(seriesValue, yKey);
         if (!seriesValues.includes(label)) seriesValues.push(label);
-        const value = toNumber(record[yKey]);
+        const value = asNumber(record[yKey]);
         if (value == null) continue;
         const bucket = entry.values.get(label) ?? [];
         bucket.push(value);
@@ -278,99 +249,78 @@ export function buildChartModel(data: ToolDataPayload, spec: ChartSpec, palette:
     chartData = [...byX.values()].map(({ row, values }) => {
       // Only series that actually have a value at this x are written: a missing
       // combination stays absent (a gap) instead of being invented as a zero.
-      for (const [label, bucket] of values) {
-        row[label] = aggregateValues(bucket, spec.aggregate);
-      }
+      for (const [label, bucket] of values) row[label] = aggregateValues(bucket, spec.aggregate);
       return row;
     });
     keys = seriesValues;
-  } else if (scatter) {
-    // A scatter is one point per row: combining rows that share an x would
-    // erase exactly the spread the chart exists to show. A point needs both a
-    // numeric x and a numeric y, so a missing cell is omitted rather than
-    // plotted as zero.
+  } else if (spec.type === "scatter") {
+    // A scatter is one point per row: combining rows that share an x would erase
+    // exactly the spread the chart exists to show.
     chartData = records.map((record) => {
-      const out: Record<string, string | number> = { [xKey]: record[xKey] };
+      const out: Record<string, ToolDataValue> = { [xColumn.name]: record[xColumn.name] };
       for (const key of valueKeys) {
-        const value = toNumber(record[key]);
+        const value = asNumber(record[key]);
         if (value != null) out[key] = value;
       }
       return out;
     });
     const hasPoint = chartData.some(
-      (row) => toNumber(row[xKey]) != null && valueKeys.some((key) => toNumber(row[key]) != null),
+      (row) => asNumber(row[xColumn.name]) != null && valueKeys.some((key) => asNumber(row[key]) != null),
     );
     if (!hasPoint) {
       return {
         ...base,
-        xKey,
         valueKeys,
-        empty: `A scatter chart needs a numeric x and y; “${xKey}” vs ${valueKeys.join(", ")} has no numeric points.`,
+        empty: `A scatter chart needs a numeric x and y; “${xColumn.name}” vs ${valueKeys.join(", ")} has no numeric points.`,
       };
     }
   } else {
-    const byX = new Map<string, { x: string; values: Record<string, number[]> }>();
+    // The map is keyed by the x value's text so equal categories group, but the
+    // row keeps the value as it arrived: a numeric or decimal x must stay a
+    // number, or `sort: "x"` would order it as text ("100" before "9").
+    const byX = new Map<string, { x: ToolDataValue; values: Record<string, number[]> }>();
     for (const record of records) {
-      const x = record[xKey];
-      const entry = byX.get(x) ?? { x, values: {} };
+      const rawX = record[xColumn.name] ?? null;
+      // Type-keyed for the same reason as the series branch above.
+      const x = `${typeof rawX}:${String(rawX ?? "")}`;
+      const entry = byX.get(x) ?? { x: rawX, values: {} };
       for (const key of valueKeys) {
-        const value = toNumber(record[key]);
+        const value = asNumber(record[key]);
         if (value == null) continue;
         (entry.values[key] = entry.values[key] ?? []).push(value);
       }
       byX.set(x, entry);
     }
     chartData = [...byX.values()].map((entry) => {
-      const out: Record<string, string | number> = { [xKey]: entry.x };
-      for (const key of valueKeys) {
-        out[key] = aggregateValues(entry.values[key] ?? [], spec.aggregate);
-      }
+      const out: Record<string, ToolDataValue> = { [xColumn.name]: entry.x };
+      for (const key of valueKeys) out[key] = aggregateValues(entry.values[key] ?? [], spec.aggregate);
       return out;
     });
   }
 
-  const type = normalizeType(spec.type, {
-    series: keys.map((key) => ({ key, label: key, color: "" })),
-    xValues,
-  });
-  const stacked = Boolean(spec.stacked) || type === "stackedBar" || type === "stackedArea";
-  const finalType: ChartType = type === "stackedBar" ? "bar" : type === "stackedArea" ? "area" : type;
-  if (finalType === "pie" || finalType === "donut") {
-    // A pie is one measure split across the x categories; several measures or a
-    // series column has no single honest rendering.
-    if (requestedY.length > 1 || seriesKey) {
-      return {
-        ...base,
-        xKey,
-        valueKeys: keys,
-        empty: "A pie chart needs a single measure and no series column.",
-      };
-    }
-    if (keys.length > 1) keys = keys.slice(0, 1);
-  }
-
-  const order = String(spec.sort ?? "").toLowerCase();
   const primary = keys[0];
   const byValue =
-    (dir: 1 | -1) =>
-    (a: Record<string, string | number>, b: Record<string, string | number>) =>
-      dir * ((Number(a[primary]) || 0) - (Number(b[primary]) || 0));
-  const limit = Math.floor(Number(spec.limit) || 0);
+    (direction: 1 | -1) =>
+    (a: Record<string, ToolDataValue>, b: Record<string, ToolDataValue>) =>
+      direction * ((asNumber(a[primary]) ?? 0) - (asNumber(b[primary]) ?? 0));
+  const limit = spec.limit ?? 0;
   if (limit > 0 && chartData.length > limit) {
     // `limit` selects the top N by value; the requested display order is then
     // applied to that selection instead of being silently discarded.
     chartData.sort(byValue(-1));
     chartData = chartData.slice(0, limit);
   }
-  if (order === "asc") chartData.sort(byValue(1));
-  else if (order === "desc") chartData.sort(byValue(-1));
-  else if (order === "x") chartData.sort((a, b) => String(a[xKey]).localeCompare(String(b[xKey])));
+  if (spec.sort === "asc") chartData.sort(byValue(1));
+  else if (spec.sort === "desc") chartData.sort(byValue(-1));
+  else if (spec.sort === "x") {
+    chartData.sort((a, b) => compareX(a[xColumn.name], b[xColumn.name], xColumn.type));
+  }
 
   if (
-    (finalType === "pie" || finalType === "donut") &&
-    !chartData.some((row) => (Number(row[primary]) || 0) !== 0)
+    (spec.type === "pie" || spec.type === "donut") &&
+    !chartData.some((row) => (asNumber(row[primary]) ?? 0) !== 0)
   ) {
-    return { ...base, xKey, valueKeys: keys, empty: "This result has no non-zero values to chart." };
+    return { ...base, valueKeys: keys, empty: "This result has no non-zero values to chart." };
   }
 
   const colors = spec.colors && spec.colors.length ? spec.colors : palette;
@@ -379,25 +329,20 @@ export function buildChartModel(data: ToolDataPayload, spec: ChartSpec, palette:
     label: key,
     color: colors[index % colors.length],
   }));
-  const requestedColorBy = String(spec.colorBy ?? "").toLowerCase();
-  const colorBy: ChartModel["colorBy"] =
-    requestedColorBy === "category" || requestedColorBy === "series" || requestedColorBy === "single"
-      ? requestedColorBy
-      : keys.length === 1 && ["bar", "hbar", "pie", "donut"].includes(finalType)
-        ? "category"
-        : "series";
 
   return {
     data: chartData,
-    xKey,
+    xKey: xColumn.name,
+    xType: xColumn.type,
     valueKeys: keys,
     series,
-    type: finalType,
-    stacked,
+    type: spec.type,
+    stacked: Boolean(spec.stacked),
     smooth: spec.smooth !== false,
-    colorBy,
-    xLabel: spec.xLabel || xKey,
+    colorBy: spec.colorBy,
+    xLabel: spec.xLabel || xColumn.name,
     yLabel: spec.yLabel || (keys.length === 1 ? keys[0] : ""),
+    integerValues: valueColumns.every((column) => column.type === "integer"),
     empty: null,
   };
 }

@@ -54,22 +54,47 @@ def test_search_similar_queries():
     assert len(res) > 0
 
 
-def test_execute_sql_query_select():
+def test_execute_sql_query_select_returns_a_typed_table():
     res = execute_sql_query("SELECT COUNT(*) AS total FROM customers")
-    assert "Query Results" in res
-    assert "total" in res
-    assert "5" in res
+    assert "Query Results" in res.content[0].text
+    contract = res.structuredContent
+    assert contract["kind"] == "tool_data_table"
+    assert contract["version"] == 1
+    assert contract["columns"] == [{"name": "total", "type": "integer"}]
+    assert contract["rows"] == [[5]]
+    assert contract["total_rows"] == 1
+
+
+def test_execute_sql_query_declares_each_column_from_the_driver_value():
+    res = execute_sql_query(
+        "SELECT customer_id, first_name FROM customers ORDER BY customer_id LIMIT 2"
+    )
+    assert res.structuredContent["columns"] == [
+        {"name": "customer_id", "type": "integer"},
+        {"name": "first_name", "type": "string"},
+    ]
+    # A value is the value: an id stays a number, a name stays text.
+    assert res.structuredContent["rows"][0][0] == 1
+    assert isinstance(res.structuredContent["rows"][0][1], str)
 
 
 def test_execute_sql_query_read_only_protection():
     res = execute_sql_query("DROP TABLE customers")
-    assert "Error: Only read-only queries" in res
+    assert "Error: Only read-only queries" in res.content[0].text
+    # A failure is an explicit error envelope, not a missing table.
+    assert res.structuredContent["kind"] == "tool_data_error"
 
     res2 = execute_sql_query("DELETE FROM customers WHERE id=1")
-    assert "Error: Only read-only queries" in res2
+    assert "Error: Only read-only queries" in res2.content[0].text
 
     res3 = execute_sql_query("INSERT INTO customers VALUES (10, 'Test')")
-    assert "Error: Only read-only queries" in res3
+    assert "Error: Only read-only queries" in res3.content[0].text
+
+
+def test_execute_sql_query_rejects_a_second_statement():
+    res = execute_sql_query("SELECT 1; DROP TABLE customers")
+    assert "one statement" in res.content[0].text
+    assert res.structuredContent["kind"] == "tool_data_error"
 
 
 def test_execute_sql_query_join():
@@ -81,8 +106,10 @@ def test_execute_sql_query_join():
     LIMIT 3
     """
     res = execute_sql_query(sql)
-    assert "Query Results" in res
-    assert "name" in res
+    assert "Query Results" in res.content[0].text
+    names = [column["name"] for column in res.structuredContent["columns"]]
+    assert "name" in names
+    assert "qty" in names
 
 
 def test_text2sql_mcp_server_registered(temp_db):

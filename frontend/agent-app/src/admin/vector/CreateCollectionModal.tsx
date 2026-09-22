@@ -69,7 +69,7 @@ export function CreateCollectionModal({ open, onClose, onCreated }: CreateCollec
       }
     >
       <AdminField
-        label="Name"
+        label="Name *"
         hint="3–63 characters using letters, numbers, underscores, hyphens or dots."
       >
         <input

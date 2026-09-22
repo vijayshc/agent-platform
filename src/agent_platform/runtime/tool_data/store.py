@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from src.agent_platform.runtime.tool_data.archive import ToolDataArchive
 from src.agent_platform.runtime.tool_data.scope import ToolDataScope
+from src.agent_platform.runtime.tool_data.table import Column, columns_from_payload
 
 #: How long an untouched conversation stays resident in memory. The archive is
 #: the durable tier, so dropping a bucket only costs a re-read.
@@ -40,13 +41,13 @@ DEFAULT_MEMORY_ROW_BUDGET = 200_000
 
 @dataclass
 class ToolData:
-    """One cached tool result."""
+    """One cached tool result: declared columns and native values."""
 
     call_id: str
     ref: str = ""
     tool_name: str = ""
-    columns: list[str] = field(default_factory=list)
-    rows: list[list[str]] = field(default_factory=list)
+    columns: list[Column] = field(default_factory=list)
+    rows: list[list[Any]] = field(default_factory=list)
     total_rows: int = 0
 
     @property
@@ -68,7 +69,7 @@ class ToolData:
             "ref": self.ref,
             "source_call_id": self.call_id,
             "tool_name": self.tool_name,
-            "columns": self.columns,
+            "columns": [column.to_dict() for column in self.columns],
             "rows": self.rows,
             "total_rows": self.total_rows,
             "returned_rows": self.returned_rows,
@@ -145,7 +146,7 @@ class ToolDataStore:
             call_id=str(payload.get("call_id") or ""),
             ref=ref,
             tool_name=str(payload.get("tool_name") or ""),
-            columns=list(payload.get("columns") or []),
+            columns=columns_from_payload(payload.get("columns")),
             rows=[list(row) for row in payload.get("rows") or []],
             total_rows=int(payload.get("total_rows") or 0),
         )
@@ -192,56 +193,45 @@ class ToolDataStore:
         return data
 
     def resolve(self, scope: ToolDataScope | None, token: str) -> ToolData | None:
-        """Resolve a model-written reference to a cached result.
+        """Resolve a reference to a cached result.
 
-        Accepts, in order: the exact ``D1`` reference, a bare ``1`` (the letter
-        dropped), the real provider ``tool_call_id``, and any of those with a
-        trailing label the model appended (``D1_line``). Call ids are opaque, so
-        peeling ``_segment`` pieces is how ``<id>_line`` still resolves.
+        Exactly two forms resolve: the short reference the marker printed
+        (``D1``) and the provider's own ``tool_call_id``. Nothing else is
+        guessed at — a reference the model wrote wrong stays unresolved and the
+        chat says the data is gone, rather than drawing whatever happened to be
+        cached under a name that merely looked similar.
         """
         if scope is None:
             return None
         text = str(token or "").strip()
         if not text:
             return None
-        candidates = [text]
-        if text.isdigit():
-            candidates.insert(0, f"D{text}")
-        # Peel trailing `_segment` labels, longest first.
-        for base in list(candidates):
-            piece = base
-            while "_" in piece:
-                piece = piece.rsplit("_", 1)[0]
-                if piece:
-                    candidates.append(piece)
         with self._lock:
             bucket = self._buckets.get(scope.key)
             if bucket is not None:
-                for candidate in candidates:
-                    data = bucket.items.get(candidate)
-                    if data is not None:
-                        bucket.items.move_to_end(candidate)
-                        bucket.touched = time.monotonic()
-                        return data
-                    ref = bucket.by_call.get(candidate)
-                    if ref and ref in bucket.items:
-                        bucket.items.move_to_end(ref)
-                        bucket.touched = time.monotonic()
-                        return bucket.items[ref]
+                data = bucket.items.get(text)
+                if data is not None:
+                    bucket.items.move_to_end(text)
+                    bucket.touched = time.monotonic()
+                    return data
+                ref = bucket.by_call.get(text)
+                if ref and ref in bucket.items:
+                    bucket.items.move_to_end(ref)
+                    bucket.touched = time.monotonic()
+                    return bucket.items[ref]
             archive = self._archive_for(scope)
             if archive is None:
                 return None
-            for candidate in candidates:
-                ref = archive.ref_for_call(candidate) or candidate
-                payload = archive.load(ref)
-                if payload is not None:
-                    data = self._to_data(ref, payload)
-                    if bucket is None:
-                        bucket = self._bucket_locked(scope)
-                    bucket.remember(data, self._budget)
-                    bucket.touched = time.monotonic()
-                    return data
-        return None
+            ref = archive.ref_for_call(text) or text
+            payload = archive.load(ref)
+            if payload is None:
+                return None
+            data = self._to_data(ref, payload)
+            if bucket is None:
+                bucket = self._bucket_locked(scope)
+            bucket.remember(data, self._budget)
+            bucket.touched = time.monotonic()
+            return data
 
     def for_run(self, scope: ToolDataScope | None, run_id: int | None) -> list[ToolData]:
         """The results cached during one run, in reference order."""

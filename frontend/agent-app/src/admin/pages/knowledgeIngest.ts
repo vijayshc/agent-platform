@@ -115,12 +115,12 @@ export function chunkingFieldErrors(size: string, overlap: string): ChunkingFiel
   const sizeNum = Number(size);
   const sizeError =
     size.trim() === "" || !Number.isInteger(sizeNum) || sizeNum < 100 || sizeNum > 8000
-      ? "Enter a whole number between 100 and 8000."
+      ? "Use a whole number between 100 and 8000."
       : null;
   const overlapNum = Number(overlap);
   const overlapError =
     overlap.trim() === "" || !Number.isInteger(overlapNum) || overlapNum < 0 || overlapNum > 2000
-      ? "Enter a whole number between 0 and 2000."
+      ? "Use a whole number between 0 and 2000."
       : null;
   return { size: sizeError, overlap: overlapError };
 }
