@@ -4,18 +4,111 @@
 
 .td-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
   margin: 10px 0;
 }
 
-.td-row > .td-card {
+.td-row > .td-card,
+.td-row > .td-note-title {
   margin: 0;
+  min-width: 0;
+}
+
+/* Narrow blocks span their share of the 12-column row. A lone narrow block
+   keeps its span so a single quarter card does not stretch full width. */
+.td-row > .td-card[data-layout="half"],
+.td-row > .td-note-title[data-layout="half"] {
+  grid-column: span 6;
+}
+
+.td-row > .td-card[data-layout="third"],
+.td-row > .td-note-title[data-layout="third"] {
+  grid-column: span 4;
+}
+
+.td-row > .td-card[data-layout="quarter"],
+.td-row > .td-note-title[data-layout="quarter"] {
+  grid-column: span 3;
+}
+
+.td-row > .td-card[data-layout="full"],
+.td-row > .td-note-title[data-layout="full"] {
+  grid-column: span 12;
+}
+
+@media (max-width: 1100px) {
+  .td-row > .td-card[data-layout="quarter"],
+  .td-row > .td-note-title[data-layout="quarter"] {
+    grid-column: span 6;
+  }
+
+  .td-row > .td-card[data-layout="third"],
+  .td-row > .td-note-title[data-layout="third"] {
+    grid-column: span 6;
+  }
 }
 
 @media (max-width: 900px) {
   .td-row {
+    grid-template-columns: 1fr;
+  }
+
+  .td-row > .td-card,
+  .td-row > .td-note-title {
+    grid-column: span 1 !important;
+  }
+}
+
+/* Masonry column rows for uniform runs (built by dataRowPlugin): cards are
+   dealt round-robin into N `.td-col` columns, so each column packs
+   independently and a card slides up under a short neighbour instead of
+   waiting below the tallest card. Mixed runs keep the grid above. */
+.td-row.td-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.td-row.td-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.td-row.td-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.td-row > .td-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.td-row .td-col > .td-card,
+.td-row .td-col > .td-note-title {
+  margin: 0;
+  min-width: 0;
+}
+
+/* `.td-list` opts out of grid stretch (align-self:start is vertical there),
+   but a `.td-col` is a column flexbox where the cross axis is horizontal —
+   without this the list shrinks to content width instead of filling the column. */
+.td-row .td-col > .td-list {
+  align-self: stretch;
+}
+
+@media (max-width: 1100px) {
+  .td-row.td-cols-4,
+  .td-row.td-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .td-row.td-cols,
+  .td-row.td-cols-3,
+  .td-row.td-cols-4 {
     grid-template-columns: 1fr;
   }
 }
@@ -25,10 +118,12 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--light-bg);
   overflow: hidden;
-  box-shadow: var(--card-shadow);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 12px 28px -20px rgb(0 0 0 / 0.18);
 }
 
 .td-card-head {
@@ -48,8 +143,9 @@
 }
 
 .td-card-title {
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
@@ -60,17 +156,75 @@
   overflow-wrap: anywhere;
 }
 
-.td-card-meta {
+/* Card header trailing controls: the download action. */
+.td-card-tools {
   flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Hover-for-info icon that carries the server's grouping notes. */
+.td-card-note-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
+  cursor: help;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.td-card-note-icon:hover {
+  color: var(--text-primary);
   background: var(--hover-bg);
+}
+
+.td-card-download {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: 1px solid var(--border-color);
-  border-radius: 999px;
-  padding: 2px 8px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  border-radius: 8px;
+  background: var(--hover-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.td-card-download:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--input-focus-border);
+  background: color-mix(in srgb, var(--info-color) 14%, transparent);
+}
+
+.td-card-download:focus-visible {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.td-card-download:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.td-spin {
+  animation: aa-spin 0.9s linear infinite;
+}
+
+.td-export-error {
+  color: var(--danger-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-spin {
+    animation: none;
+  }
 }
 
 .td-chart {
@@ -79,11 +233,49 @@
   min-width: 0;
 }
 
+/* Charts keep the card's light border but have no header bar: the title is a
+   centered heading over the plot, with the actions pinned top-right. */
+.td-flat-head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 44px 4px;
+  text-align: center;
+}
+
+.td-flat-head .td-card-tools {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+}
+
+.td-flat-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* Table keeps a header divider (unlike the chart), with a centered title. */
+.td-table-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
 .td-card-foot {
   margin-top: auto;
   padding: 6px 14px 10px;
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
   border-top: 1px dashed var(--border-color);
 }
 
@@ -92,8 +284,8 @@
   align-items: center;
   gap: 6px;
   padding: 14px;
-  font-size: 12.5px;
-  color: var(--text-muted);
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .td-card-missing {
@@ -115,8 +307,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
-  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
   min-width: 0;
   max-width: 100%;
 }
@@ -177,7 +370,7 @@
 
 .td-pie-total-value {
   font-size: 19px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -225,25 +418,50 @@ table.td-table {
   width: 100% !important;
   margin: 0 !important;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 table.td-table thead th {
   background: var(--table-header-bg);
   color: var(--table-header-text);
   font-weight: 600;
-  font-size: 11.5px;
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  letter-spacing: 0.01em;
   border-bottom: 1px solid var(--table-border) !important;
   white-space: nowrap;
+  text-align: left;
 }
 
 table.td-table tbody td {
   background: var(--table-row-bg);
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  font-weight: 450;
   border-top: 1px solid var(--table-border) !important;
-  padding: 6px 10px;
+  padding: 7px 10px;
   white-space: nowrap;
+  text-align: left;
+}
+
+/* Uniform left alignment: DataTables right-aligns numeric/date columns
+   (dt-type-numeric / dt-type-date) and flips their header to row-reverse,
+   which puts the sort icon on the opposite side from string columns. Every
+   column stays left aligned with its sort icon in the same place. */
+table.td-table th.dt-type-numeric,
+table.td-table td.dt-type-numeric,
+table.td-table th.dt-type-date,
+table.td-table td.dt-type-date {
+  text-align: left;
+}
+
+table.td-table th.dt-type-numeric div.dt-column-header,
+table.td-table th.dt-type-numeric div.dt-column-footer,
+table.td-table td.dt-type-numeric div.dt-column-header,
+table.td-table td.dt-type-numeric div.dt-column-footer,
+table.td-table th.dt-type-date div.dt-column-header,
+table.td-table th.dt-type-date div.dt-column-footer,
+table.td-table td.dt-type-date div.dt-column-header,
+table.td-table td.dt-type-date div.dt-column-footer {
+  flex-direction: row;
 }
 
 table.td-table tbody tr:hover td,
@@ -256,10 +474,10 @@ table.td-table.display tbody tr:hover > td {
    fixes the light-on-dark defaults (invisible disabled paging, black sort
    arrows) without fighting the library's selectors. */
 .td-card-table {
-  --dt-control_color: var(--text-secondary);
-  --dt-order-arrow_color: var(--text-muted);
+  --dt-control_color: var(--text-primary);
+  --dt-order-arrow_color: var(--text-secondary);
   --dt-order-arrow_color-current: var(--info-color);
-  --dt-order-arrow_opacity: 0.45;
+  --dt-order-arrow_opacity: 0.7;
   --dt-order-arrow_opacity-current: 1;
   --dt-paging-button_color-disabled: var(--text-muted);
   --dt-paging-button_color-current: var(--text-primary);
@@ -273,8 +491,8 @@ table.td-table.display tbody tr:hover > td {
 }
 
 .td-card-table .dt-container {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
 }
 
 .td-card-table .dt-layout-row {
@@ -293,7 +511,9 @@ table.td-table.display tbody tr:hover > td {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .td-card-table .dt-search input,
@@ -305,7 +525,7 @@ table.td-table.display tbody tr:hover > td {
   color: var(--text-primary) !important;
   border-radius: 8px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: 13px;
   outline: none;
 }
 
@@ -325,11 +545,14 @@ table.td-table.display tbody tr:hover > td {
 }
 
 .td-card-table .dt-search input::placeholder {
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 
 .td-card-table .dt-info {
-  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -342,11 +565,12 @@ table.td-table.display tbody tr:hover > td {
   appearance: none;
   border: 1px solid var(--border-color);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   border-radius: 7px;
   min-width: 26px;
   padding: 3px 7px;
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -363,9 +587,9 @@ table.td-table.display tbody tr:hover > td {
 }
 
 .td-card-table .dt-paging .dt-paging-button.disabled {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   border-color: var(--border-color);
-  opacity: 0.45;
+  opacity: 0.6;
   cursor: default;
 }
 
@@ -442,35 +666,49 @@ table.td-table thead th.dt-ordering-desc {
   top: 50%;
   transform: translateY(-50%) rotate(180deg);
   writing-mode: vertical-rl;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   pointer-events: none;
+}
+
+/* Second-axis title, pinned to the right edge instead of the left. */
+.td-axis-y-right {
+  left: auto;
+  right: -2px;
 }
 
 .td-axis-x {
   text-align: center;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   padding: 2px 0 2px;
 }
 
 /* Value labels on bars and the percentage column in pie legends. */
 .td-value-label {
+  fill: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Recharts renders tick labels as SVG <text>: keep them at body-copy contrast
+   even where a tick prop is overridden elsewhere. */
+.td-chart .recharts-cartesian-axis-tick text {
+  font-size: 12px;
+  font-weight: 500;
   fill: var(--text-secondary);
-  font-size: 10.5px;
-  font-weight: 650;
 }
 
 .td-legend-pct {
   margin-left: 6px;
   min-width: 34px;
   text-align: right;
-  color: var(--text-muted);
-  font-size: 10.5px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -490,16 +728,590 @@ table.td-table thead th.dt-ordering-desc {
   color: var(--text-secondary);
 }
 
-/* Notes the server attached: how rows were grouped, whether data was clipped. */
-.td-card-notes {
-  list-style: none;
-  margin: 0;
-  padding: 4px 14px 10px;
-  border-top: 1px dashed var(--border-color);
-  font-size: 11px;
+/* ------------------------------------------------------------------- KPI */
+
+.td-kpi {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Wide accent shade down the left edge. */
+.td-kpi-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 7px;
+  background: var(--info-color);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.td-kpi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 58px 14px 20px;
+}
+
+.td-kpi-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
+.td-kpi-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(20px, 6.5vw, 27px);
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-kpi-caption-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.td-kpi-caption {
+  flex: 1;
+  min-width: 0;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-kpi-chip {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  z-index: 1;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+}
+
+.td-kpi-hint {
+  font-size: 12px;
   color: var(--text-muted);
 }
 
-.td-card-notes li::before {
-  content: "· ";
+.td-kpi-delta-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 55%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--info-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info-color) 30%, transparent);
+}
+
+.td-kpi-delta-sep {
+  opacity: 0.45;
+}
+
+.td-kpi-delta-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-kpi-spark {
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------------------------ rank */
+
+.td-rank {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+}
+
+/* A short list card sizes to its rows instead of stretching to a tall
+   sibling, so a two-row ranking never floats in empty space. */
+.td-list {
+  align-self: start;
+}
+
+.td-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--light-bg);
+  border: 1px solid var(--border-color);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.td-rank-row:hover {
+  background: var(--hover-bg);
+  border-color: color-mix(in srgb, var(--text-muted) 28%, var(--border-color));
+}
+
+.td-rank-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.td-rank-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.td-rank-pos {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 16%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Podium tones for the top three rows. */
+.td-rank-top1 {
+  color: #92690e;
+  background: color-mix(in srgb, #f59e0b 22%, transparent);
+  border-color: color-mix(in srgb, #f59e0b 55%, transparent);
+}
+
+.td-rank-top2 {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-secondary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--text-secondary) 40%, transparent);
+}
+
+.td-rank-top3 {
+  color: #9a5b1e;
+  background: color-mix(in srgb, #d97706 16%, transparent);
+  border-color: color-mix(in srgb, #d97706 45%, transparent);
+}
+
+.td-rank-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.td-rank-value {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-rank-share {
+  min-width: 30px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Plain variant: a clean ranked list with hairline separators, no bars. */
+.td-rank-plain {
+  justify-content: flex-start;
+  gap: 0;
+}
+
+.td-rank-plain .td-rank-row {
+  padding: 10px 2px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.td-rank-plain .td-rank-row:last-child {
+  border-bottom: none;
+}
+
+.td-rank-plain .td-rank-row:hover {
+  background: transparent;
+}
+
+.td-rank-track {
+  display: block;
+  height: 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  overflow: hidden;
+}
+
+.td-rank-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--info-color) 72%, transparent),
+    var(--info-color)
+  );
+}
+
+/* Dashboard cards render inside `.chat-markdown` / `.aa-md`, whose generic
+   `ol` / `ul` / `li` typography (specificity 0,1,1) beats `.td-rank` (0,1,0):
+   it shifts the list right by 20px and strips its horizontal padding, so rows
+   overflow and clip on the right while leaving a gap on the left. Re-assert
+   with higher specificity so the list keeps symmetric insets. */
+.chat-markdown .td-rank,
+.aa-md .td-rank {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.chat-markdown .td-rank-row,
+.aa-md .td-rank-row {
+  margin: 0;
+}
+
+.chat-markdown .td-legend,
+.aa-md .td-legend {
+  margin: 2px 0 4px;
+  padding: 0 6px 6px;
+  list-style: none;
+}
+
+.chat-markdown .td-legend-item,
+.chat-markdown .td-legend-pie,
+.aa-md .td-legend-item,
+.aa-md .td-legend-pie {
+  margin: 0;
+}
+
+/* Narrow screens: the delta pill stacks below the number so the headline
+   always has the full card width and can never collide or truncate. */
+@media (max-width: 640px) {
+  .td-kpi-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .td-kpi-value {
+    flex: 0 0 auto;
+    font-size: 24px;
+  }
+
+  .td-kpi-delta-pill {
+    align-self: flex-start;
+    max-width: 100%;
+  }
+}
+
+/* Narrow screens: label + value share the first line, the bar gets its own
+   full-width second line so labels are never truncated to ambiguity. */
+@media (max-width: 640px) {
+  .td-rank {
+    gap: 10px;
+  }
+
+  .td-rank-share {
+    display: none;
+  }
+
+  /* Let the value wrap under the label instead of squeezing it to "2…". */
+  .td-rank-top {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .td-rank-label {
+    flex: 1 1 auto;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+  }
+
+  .td-rank-value {
+    flex: 0 0 auto;
+  }
+}
+
+/* -------------------------------------------------------------- progress */
+
+.td-progress-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.td-progress-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.td-progress-value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-progress-target {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.td-progress-pct {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-progress-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--info-color) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info-color) 30%, transparent);
+}
+
+.td-progress-pill-over {
+  color: var(--success-color, #10b981);
+  background: color-mix(in srgb, var(--success-color, #10b981) 14%, transparent);
+  border-color: color-mix(in srgb, var(--success-color, #10b981) 34%, transparent);
+}
+
+.td-progress-over {
+  color: var(--success-color, #10b981);
+}
+
+.td-progress-track {
+  position: relative;
+  height: 14px;
+  border-radius: 8px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.td-progress-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--info-color) 72%, transparent),
+    var(--info-color)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 0 10px color-mix(in srgb, var(--info-color) 45%, transparent);
+  transition: width 300ms ease;
+}
+
+.td-progress-fill-over {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--success-color, #10b981) 72%, transparent),
+    var(--success-color, #10b981)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 0 10px color-mix(in srgb, var(--success-color, #10b981) 45%, transparent);
+}
+
+.td-progress-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  pointer-events: none;
+}
+
+.td-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-progress-note {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--success-color, #10b981);
+}
+
+/* ------------------------------------------------------------------ note */
+
+.td-note {
+  border-left-width: 3px;
+}
+
+.td-note-info {
+  border-left-color: var(--info-color);
+}
+
+.td-note-insight {
+  border-left-color: var(--warning-color, #f59e0b);
+  background: color-mix(in srgb, var(--warning-color, #f59e0b) 6%, var(--light-bg));
+}
+
+.td-note-warning {
+  border-left-color: var(--danger-color);
+  background: color-mix(in srgb, var(--danger-color) 6%, var(--light-bg));
+}
+
+.td-note-success {
+  border-left-color: var(--success-color, #10b981);
+  background: color-mix(in srgb, var(--success-color, #10b981) 7%, var(--light-bg));
+}
+
+.td-note-body {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  align-items: flex-start;
+}
+
+.td-note-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.td-note-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.td-note-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.td-note-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.td-note-text p {
+  margin: 0 0 6px;
+}
+
+.td-note-text p:last-child {
+  margin-bottom: 0;
+}
+
+/* Section headers between dashboard rows. */
+.td-note-title {
+  margin: 24px 0 2px;
+}
+
+.td-note-title-text {
+  width: fit-content;
+  max-width: 100%;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+/* Full-width fading accent underline under a section title. */
+.td-note-title-text::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--info-color) 0%,
+    color-mix(in srgb, var(--info-color) 55%, transparent) 45%,
+    transparent 100%
+  );
+}
+
+.td-note-title-body {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.td-note-title-body p {
+  margin: 0;
 }

@@ -146,9 +146,11 @@ def _redirect_or_json(target):
         payload = {'success': True, 'redirect': target}
         user_id = session.get('user_id')
         if user_id:
-            from src.agent_platform.api.tokens import TOKEN_TTL_SECONDS, issue_access_token
+            from src.auth.access_tokens import TOKEN_TTL_SECONDS, issue_access_token
 
-            payload['access_token'] = issue_access_token(int(user_id))
+            payload['access_token'] = issue_access_token(
+                int(user_id), username=session.get('username')
+            )
             payload['token_type'] = 'Bearer'
             payload['expires_in'] = TOKEN_TTL_SECONDS
         return jsonify(payload)

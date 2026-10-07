@@ -1,9 +1,10 @@
-/** Studio API client: catalog, definitions, validate, plan, publish, runs, skills.
+/** Studio API client: catalog, definitions, validate, plan, publish, skills.
  *
  * Thin wrappers over `src/api.ts` so the editor never hand-writes a URL. Every
- * call is same-origin with session credentials.
+ * call is same-origin with session credentials. Runs execute in the real chat
+ * page (`/agent?agent=`), never in the Studio.
  */
-import { apiDelete, apiGet, apiPostJson, apiPostStream, apiPutJson } from "../api";
+import { apiDelete, apiGet, apiPostJson, apiPutJson } from "../api";
 import type { AgentDef, SkillPackage, StudioResources } from "../types";
 import type { CompilePlan, DefinitionBody, ValidateIssue, ValidateReport } from "./model/types";
 
@@ -61,6 +62,26 @@ export function publishDefinition(slug: string, published: boolean): Promise<Age
   return apiPostJson<AgentDef>(`/api/v1/agents/${encodeURIComponent(slug)}/publish`, { published });
 }
 
+export function listVersions(id: string): Promise<{ versions: import("../types").AgentVersion[] }> {
+  return apiGet<{ versions: import("../types").AgentVersion[] }>(`/api/v1/agents/${encodeURIComponent(id)}/versions`);
+}
+
+export function getVersion(id: string, ver: number): Promise<AgentDef> {
+  return apiGet<AgentDef>(`/api/v1/agents/${encodeURIComponent(id)}/versions/${ver}`);
+}
+
+export function rollbackVersion(id: string, version: number): Promise<AgentDef> {
+  return apiPostJson<AgentDef>(`/api/v1/agents/${encodeURIComponent(id)}/rollback`, { version });
+}
+
+export function cloneDefinition(id: string, body?: { name?: string; slug?: string }): Promise<AgentDef> {
+  return apiPostJson<AgentDef>(`/api/v1/agents/${encodeURIComponent(id)}/clone`, body ?? {});
+}
+
+export function deleteDefinition(id: string): Promise<{ ok?: boolean }> {
+  return apiDelete<{ ok?: boolean }>(`/api/v1/agents/${encodeURIComponent(id)}`);
+}
+
 export function compilePlan(body: DefinitionBody): Promise<CompilePlan> {
   return apiPostJson<CompilePlan>("/api/v1/studio/plan", body);
 }
@@ -71,39 +92,6 @@ export function studioResources(): Promise<StudioResources> {
 
 export function mcpServerTools(serverId: number): Promise<StudioResources["mcp_servers"][number]> {
   return apiGet<StudioResources["mcp_servers"][number]>(`/api/v1/studio/mcp-servers/${serverId}/tools`);
-}
-
-export interface RunStreamRequest {
-  agent_id?: string;
-  definition?: { name: string; kind: string; config: Record<string, unknown> };
-  input: string;
-  stream: true;
-  /** Run-level connection; "default" means the deployment default. */
-  model?: { client: string };
-}
-
-export function startRun(body: RunStreamRequest, signal?: AbortSignal): Promise<Response> {
-  return apiPostStream("/api/v1/runs", body, signal);
-}
-
-/** Resume a paused run. `decisions` is the HumanInTheLoopMiddleware contract. */
-export function resumeRun(
-  runId: string,
-  decisions: unknown[],
-  signal?: AbortSignal,
-): Promise<Response> {
-  return apiPostStream(`/api/v1/runs/${encodeURIComponent(runId)}/approvals`, {
-    decisions,
-    stream: true,
-  }, signal);
-}
-
-export function getRun(runId: string): Promise<{ status?: string; workspace_files?: string[] }> {
-  return apiGet<{ status?: string; workspace_files?: string[] }>(`/api/v1/runs/${encodeURIComponent(runId)}`);
-}
-
-export function cancelRun(runId: string): Promise<{ status?: string }> {
-  return apiPostJson<{ status?: string }>(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, {});
 }
 
 /* ------------------------------------------------------------------- skills */

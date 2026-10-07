@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { StreamingMarkdown } from "./StreamingMarkdown";
-import { hasRichBlocks } from "./chartProtocol";
+import { hasDataBlocks } from "./dataBlock";
 import { ToolDataProvider } from "./toolDataContext";
 import type { ToolDataPayload } from "./toolDataTypes";
 import "./chatStream.css";
@@ -98,7 +98,7 @@ export function BubbleBody({
     <ToolDataProvider items={toolData} pending={streaming}>
       <div
         className={`aa-bubble-body aa-md${streaming ? " aa-streaming" : ""}${
-          hasRichBlocks(cur) || hasRichBlocks(prev) ? " aa-rich" : ""
+          hasDataBlocks(cur) || hasDataBlocks(prev) ? " aa-rich" : ""
         }`}
       >
         <div className="aa-swap-stage" ref={stageRef}>

@@ -155,19 +155,18 @@ def compile_model_client(
 def generation_options(config: dict[str, Any] | None) -> dict[str, Any]:
     """Provider parameters an agent pins for its own model calls.
 
-    ``default_options`` is the agent author's generation configuration
-    (temperature, max_tokens, ...) and ``max_output_tokens`` is the explicit
-    output cap, which wins when both are present. The connection's Model
-    Parameters stay the base and are overridden key by key.
+    ``default_options`` carries the agent author's generation configuration
+    (temperature, top_p, ...). Output token caps are **not** an agent setting:
+    the LLM Manager connection's Model Parameters own the output budget, so any
+    legacy ``default_options.max_tokens`` or ``max_output_tokens`` on the
+    definition is dropped here and the connection's cap always wins.
     """
     options = {
         key: value
         for key, value in dict((config or {}).get("default_options") or {}).items()
         if value is not None
     }
-    max_output = (config or {}).get("max_output_tokens")
-    if isinstance(max_output, int) and not isinstance(max_output, bool) and max_output > 0:
-        options["max_tokens"] = max_output
+    options.pop("max_tokens", None)
     from src.utils.llm_connection_manager import RESERVED_BODY_KEYS, LLMConnectionError
 
     reserved = sorted(RESERVED_BODY_KEYS.intersection(options))

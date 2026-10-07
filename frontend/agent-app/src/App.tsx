@@ -1,5 +1,6 @@
 import { RunsPage } from "./runs/RunsPage";
 import { ChatPage } from "./chat/ChatPage";
+import { HomePage } from "./home/HomePage";
 import { AgentListPage } from "./studio/AgentListPage";
 import { StudioPage } from "./studio/StudioPage";
 import { AdminApp } from "./admin/AdminApp";
@@ -48,6 +49,12 @@ export function App() {
         <AgentListPage />
       </AdminShell>
     );
+  }
+  if (path === "/" || path === "/home") {
+    return <HomePage />;
+  }
+  if (path === "/agent" || path.startsWith("/agent/")) {
+    return <ChatPage />;
   }
   return <ChatPage />;
 }

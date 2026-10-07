@@ -9,6 +9,7 @@ import { LeftRail } from "./LeftRail";
 import { ModelPicker, useChatModels } from "./ModelPicker";
 import { SettingsPanel, type MeInfo } from "./SettingsPanel";
 import { applyEvent, hydrateMessages, pendingHitl, settleLiveReasoning, titleFromInput, uid } from "./chatLogic";
+import { useAgentBootstrap, storeAgentSlug } from "./useAgentBootstrap";
 import { useConversationList } from "./useConversationList";
 
 export function ChatPage() {
@@ -35,6 +36,7 @@ export function ChatPage() {
   const [fileCount, setFileCount] = useState(0);
   const turnStartedAt = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const meRef = useRef<MeInfo | null>(null);
   const { models, modelId, setModelId, selected: selectedModel, open: modelOpen, setOpen: setModelOpen } = useChatModels();
   const {
     conversations,
@@ -78,19 +80,25 @@ export function ChatPage() {
   const [transcriptHeight, setTranscriptHeight] = useState<number>(0);
 
   useEffect(() => {
-    loadConversations(true).catch((e) => setError(String(e.message || e)));
-    apiGet<{ agents: AgentDef[] }>("/api/v1/agents")
-      .then((a) => setAgents(a.agents || []))
-      .catch((e) => setError(String(e.message || e)));
-    apiGet<MeInfo>("/api/v1/me").then(setMe).catch(() => setMe(null));
-  }, [loadConversations]);
+    meRef.current = me;
+  }, [me]);
 
-  useEffect(() => {
-    if (!agent && conv?.agent_slug && agents.length > 0) {
-      const found = agents.find((a) => a.slug === conv.agent_slug);
-      if (found) setAgent(found);
-    }
-  }, [agents, conv, agent]);
+  const rememberAgent = useCallback((slug: string) => {
+    storeAgentSlug(slug, meRef.current?.username);
+  }, []);
+
+  useAgentBootstrap({
+    agents,
+    conv,
+    agent,
+    setAgents,
+    setAgent,
+    setMe,
+    setError,
+    loadConversations,
+    meRef,
+    rememberAgent,
+  });
 
   // When the agent finishes responding, return focus to the composer so the user
   // can keep typing without clicking. Skip when a HITL decision is pending (the
@@ -226,15 +234,36 @@ export function ChatPage() {
     const slug = full.agent_slug;
     // The agent list is the server's filtered list of what this user may run.
     // Never fabricate an agent the server would reject: if this chat's agent is
-    // no longer in the list, leave it unselected and say so.
+    // no longer in the list, try its full (possibly draft) shape before saying so.
     const found = slug ? agents.find((a) => a.slug === slug) : undefined;
-    setAgent(found ?? null);
-    if (slug && !found && agents.length > 0) {
-      setError("This chat's agent is no longer available to you.");
-    } else {
+    if (found) {
+      setAgent(found);
+      rememberAgent(found.slug);
       setError(null);
+      setMessages(hydrateMessages(full, found?.name));
+      stickToBottom.current = true;
+      return;
     }
-    setMessages(hydrateMessages(full, found?.name));
+    if (slug && agents.length > 0) {
+      try {
+        const draft = await apiGet<AgentDef>(`/api/v1/agents/${encodeURIComponent(slug)}?full=1`);
+        setAgent(draft);
+        setAgents((prev) =>
+          prev.some((r) => r.slug === draft.slug) ? prev : [...prev, draft],
+        );
+        rememberAgent(draft.slug);
+        setError(null);
+        setMessages(hydrateMessages(full, draft?.name));
+      } catch {
+        setAgent(null);
+        setError("This chat's agent is no longer available to you.");
+        setMessages(hydrateMessages(full, undefined));
+      }
+    } else {
+      setAgent(null);
+      setError(null);
+      setMessages(hydrateMessages(full, undefined));
+    }
     stickToBottom.current = true;
   }
 
@@ -245,6 +274,7 @@ export function ChatPage() {
 
   function selectAgent(next: AgentDef) {
     setAgent(next);
+    rememberAgent(next.slug);
     setSpotlight(false);
     if (pendingSend.current) {
       pendingSend.current = false;
@@ -497,7 +527,6 @@ export function ChatPage() {
         onLoadMore={loadMoreConversations}
         hasMore={convTotal == null || (searchHits ? searchHits.length : conversations.length) < convTotal}
         loadingMore={convLoadingMore}
-        showAutomations={Boolean(me?.modules?.includes("agent_studio"))}
       />
 
       <ChatMain

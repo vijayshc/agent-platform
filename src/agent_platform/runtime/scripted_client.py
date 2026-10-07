@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, AsyncIterator, Iterator, List, Optional, Sequence
+from typing import Any, AsyncIterator, List, Optional, Sequence
 from pydantic import Field
 
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun

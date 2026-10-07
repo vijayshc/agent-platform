@@ -12,14 +12,14 @@ other page: nothing about the app can exempt it from either.
 
 from __future__ import annotations
 
-import os
 import re
 
 from flask import Blueprint, abort, g, jsonify, redirect, request, session
 
 from src.auth import resource_access
 from src.auth.decorators import admin_required, module_required
-from src.hosting import capabilities, identity, installer, origin, policy, proxy, settings, supervisor
+from src.hosting import capabilities, installer, origin, policy, settings, supervisor
+from src.hosting.app_proxy import forward_app_request, handle_origin_gate
 from src.models.hosted_app import HOSTED_APP_RESOURCE_TYPE, HostedApp
 from src.utils.auth_utils import login_required
 from src.utils.user_manager import UserManager
@@ -91,8 +91,6 @@ def _access_denied():
                         "message": "You do not have access to this application"}), 403
     if not origin.is_apps_origin(request):
         abort(403)  # the platform's 403 page, rendered by the SPA
-    from flask import make_response
-
     return origin.message_page(
         request, 403, "Forbidden", "You do not have access to this application."
     )
@@ -106,45 +104,6 @@ def _not_found(slug: str):
             f"There is no hosted application named &lsquo;{slug}&rsquo;.",
         )
     return jsonify({"error": "not_found", "message": f"No hosted app named '{slug}'"}), 404
-
-
-def _origin_gate(path: str | None = None):
-    """``None`` to serve here, a 308 to the apps origin, or a 503 refusal.
-
-    App content is never served on the platform's own origin: a document there is
-    same-origin with the platform's own JavaScript, so it could call platform APIs
-    as the signed-in user. A request that *arrives* on the apps origin is served
-    (that origin may be an operator-provided process this one knows nothing
-    about); a request on the platform origin is redirected there, and refused with
-    an explanation when that origin is not available - falling back to same-origin
-    serving would silently restore exactly what this removes.
-    """
-    if origin.is_apps_origin(request):
-        return None
-    if not origin.available():
-        return jsonify({
-            "error": "apps_origin_unavailable",
-            "message": (
-                "Hosted apps are served from their own origin, and it is not listening. "
-                f"Check HOSTED_APPS_ORIGIN_PORT. ({origin.describe()})"
-            ),
-        }), 503
-    return origin.redirect_for(request, path)
-
-
-def _roles_for(user_id) -> str:
-    try:
-        user = UserManager().get_user_by_id(int(user_id))
-        return ",".join(sorted(role.name for role in (user.roles or []))) if user else ""
-    except Exception:
-        return ""
-
-
-def _username_for(user_id) -> str:
-    try:
-        return session.get("username") or UserManager().get_username_by_id(int(user_id)) or ""
-    except Exception:
-        return str(user_id or "")
 
 
 # --- admin page -----------------------------------------------------------
@@ -170,7 +129,7 @@ def hosted_app_root(slug: str):
         return jsonify({"error": "not_found", "message": f"No hosted app named '{slug}'"}), 404
     if not origin.is_apps_origin(request):
         # Straight to the apps origin, trailing slash included: one hop, not two.
-        gate = _origin_gate(path=f"/apps/{slug}/")
+        gate = handle_origin_gate(path=f"/apps/{slug}/")
         if gate is not None:
             return gate
     # This route is the bare form of the app URL, so it carries the same
@@ -193,69 +152,15 @@ def hosted_app_root(slug: str):
 def hosted_app_proxy(slug: str, subpath: str):
     if not SLUG_PATTERN.match(slug):
         return jsonify({"error": "not_found", "message": f"No hosted app named '{slug}'"}), 404
-    gate = _origin_gate()
+    gate = handle_origin_gate()
     if gate is not None:
         return gate
     record = HostedApp.get_by_slug(slug)
     if record is None:
         return _not_found(slug)
-    # A network gate, judged before anything else: the app answers only the
-    # addresses its operator named. The admin API that sets this list lives on the
-    # platform's own path, so a wrong list is always fixable.
-    ip_block = policy.check_source_ip(request.remote_addr, policy.for_record(record))
-    if ip_block:
-        return proxy.blocked_response(
-            "Blocked by the source IP policy", ip_block, 403,
-            "blocked_by_source_ip", "source IP policy",
-        )
     if not _user_can_use(record, session.get("user_id")):
         return _access_denied()
-    if supervisor.get_status(slug) != "running":
-        if origin.wants_html(request):
-            return origin.message_page(
-                request, 503, "Application not running",
-                f"&lsquo;{record.name}&rsquo; is not running. An administrator can start it "
-                "from Hosted Apps.",
-            )
-        return jsonify({
-            "error": "not_running",
-            "message": f"'{record.name}' is not running.",
-        }), 503
-
-    declared = request.content_length or 0
-    if declared > MAX_REQUEST_BYTES:
-        return jsonify({
-            "error": "payload_too_large",
-            "message": f"Request body exceeds {MAX_REQUEST_BYTES // (1024 * 1024)} MB",
-        }), 413
-
-    # The body is read with its own budget, not the declared one: a chunked
-    # request carries no Content-Length, so trusting the header alone let an
-    # arbitrarily large body be buffered in the platform process (measured).
-    try:
-        body = request.stream.read(MAX_REQUEST_BYTES + 1) if request.method not in ("GET", "HEAD") else None
-    except Exception:
-        return jsonify({"error": "bad_request", "message": "The request body could not be read"}), 400
-    if body is not None and len(body) > MAX_REQUEST_BYTES:
-        return jsonify({
-            "error": "payload_too_large",
-            "message": f"Request body exceeds {MAX_REQUEST_BYTES // (1024 * 1024)} MB",
-        }), 413
-
-    headers = {key: value for key, value in request.headers.items() if key.lower() not in proxy.REQUEST_DROP}
-    cookie_header = proxy.forwarded_cookie_header(slug)
-    if cookie_header:
-        headers["Cookie"] = cookie_header
-    headers["X-Forwarded-Prefix"] = f"/apps/{slug}"
-    headers["X-Forwarded-Host"] = request.host
-    headers["X-Forwarded-Proto"] = request.scheme
-    if request.remote_addr:
-        headers["X-Forwarded-For"] = request.remote_addr
-
-    user_id = session.get("user_id")
-    headers.update(identity.build_headers(user_id, _username_for(user_id), _roles_for(user_id)))
-
-    return proxy.forward(record, subpath, body, headers)
+    return forward_app_request(record, subpath)
 
 
 # --- admin API ------------------------------------------------------------

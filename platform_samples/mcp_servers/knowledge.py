@@ -1,9 +1,15 @@
-"""Knowledge Base FastMCP server (stdio).
+"""Knowledge Base FastMCP server.
 
 Exposes the app's knowledge management (RAG) capabilities as MCP tools so any
 agent can answer questions from the knowledge base. Backed by
 ``src.utils.knowledge_manager.KnowledgeManager`` (document chunking, ChromaDB
 vector search, reranking, and LLM-grounded answer generation).
+
+Every tool runs behind the platform's MCP gate (``src.mcp_server_auth``), which
+verifies the access token the app minted for the user whose run triggered the
+call - so retrieval is scoped to *that* user's documents by
+``src.utils.knowledge_access``, exactly as it is in the web UI. The identity is
+never an argument: a caller cannot ask for another user's documents.
 
 The server intentionally defers importing the heavy KnowledgeManager until the
 first tool call so an MCP session can list this server's tools without
@@ -23,6 +29,8 @@ for _h in logging.root.handlers:
     _h.setStream(sys.stderr)
 
 from mcp.server.fastmcp import FastMCP
+
+from src.mcp_server_auth import current_caller
 
 mcp = FastMCP("Knowledge")
 
@@ -93,7 +101,9 @@ def search_knowledge(query: str, tags: list[str] | None = None) -> str:
         )
 
     try:
-        result = _manager().get_answer(query, user_id=None, stream=False, tags=tags)
+        result = _manager().get_answer(
+            query, user_id=current_caller().user_id, stream=False, tags=tags
+        )
     except Exception as exc:  # pragma: no cover - defensive
         return f"Error querying knowledge base: {exc}"
 
@@ -114,7 +124,7 @@ def list_knowledge_documents() -> str:
         count, tags, allowed roles).
     """
     try:
-        docs = _manager().list_documents()
+        docs = _manager().list_documents(user_id=current_caller().user_id)
     except Exception as exc:  # pragma: no cover - defensive
         return f"Error listing documents: {exc}"
 
@@ -150,10 +160,9 @@ def get_document_info(document_id: str) -> str:
     try:
         from src.utils import knowledge_access
 
-        # This stdio server has no authenticated identity, so only public
-        # (owner-less) documents are in scope.  Never expose another tenant's
-        # document metadata to a background tool call.
-        scope = knowledge_access.retrieval_document_ids(None)
+        # The gate verified which user's run this is, so the caller's own
+        # document scope applies - never another tenant's metadata.
+        scope = knowledge_access.retrieval_document_ids(current_caller().user_id)
         if scope is not None and document_id not in scope:
             return f"Document not found: {document_id}"
         info = _manager().get_document_info(document_id)
@@ -184,7 +193,7 @@ def list_knowledge_tags() -> str:
         Comma-separated list of unique tags.
     """
     try:
-        tags = _manager().get_all_tags()
+        tags = _manager().get_all_tags(user_id=current_caller().user_id)
     except Exception as exc:  # pragma: no cover - defensive
         return f"Error listing tags: {exc}"
 

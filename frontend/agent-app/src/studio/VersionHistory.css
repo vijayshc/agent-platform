@@ -1,0 +1,39 @@
+.as-version-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.as-version-row {
+  cursor: default;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.as-version-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.as-version-preview {
+  margin-top: 12px;
+}
+
+.as-version-preview-title {
+  font-size: 13px;
+}
+
+.as-version-preview-json {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.as-version-preview-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

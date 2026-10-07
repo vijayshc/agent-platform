@@ -3,14 +3,8 @@
 Agent Studio stores the author's per-tool settings inside each MCP binding::
 
     mcp_bindings: [
-        {
-            "server_id": 3,
-            "tools": ["execute_sql_query"],
-            "approval": [],
-            "tool_data": {
-                "execute_sql_query": {"sample": true, "sample_rows": 20, "cache_rows": 5000}
-            },
-        }
+        {"server_id": 3, "tools": ["execute_sql_query"],
+         "tool_data": {"execute_sql_query": {"sample": true, "sample_rows": 20}}}
     ]
 
 Only tools with ``sample`` enabled become "data tools": their markdown result is
@@ -22,10 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-#: Rows sent to the model when the author enables sampling but gives no number.
 DEFAULT_SAMPLE_ROWS = 20
-#: Upper bound on the rows held in the intermediate cache, so a runaway query
-#: can never exhaust process memory. ``cache_rows = 0`` means "all (up to here)".
 MAX_CACHE_ROWS = 50_000
 
 
@@ -35,7 +26,6 @@ class ToolDataConfig:
 
     enabled: bool = False
     sample_rows: int = DEFAULT_SAMPLE_ROWS
-    #: ``0`` means keep as many rows as :data:`MAX_CACHE_ROWS` allows.
     cache_rows: int = 0
 
 
@@ -101,3 +91,13 @@ def policy_from_config(config: dict[str, Any] | None) -> ToolDataPolicy:
 def cache_limit(config: ToolDataConfig) -> int:
     """The row cap applied to the intermediate cache for one tool."""
     return config.cache_rows if config.cache_rows > 0 else MAX_CACHE_ROWS
+
+
+__all__ = [
+    "DEFAULT_SAMPLE_ROWS",
+    "MAX_CACHE_ROWS",
+    "ToolDataConfig",
+    "ToolDataPolicy",
+    "policy_from_config",
+    "cache_limit",
+]

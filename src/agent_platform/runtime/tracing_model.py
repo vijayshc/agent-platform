@@ -39,6 +39,25 @@ def _summarize(messages: Sequence[BaseMessage]) -> str:
     return "\n".join(out)
 
 
+def _chunk_finish_reason(chunk: Any) -> str | None:
+    """The provider's finish reason for a streamed chunk, wherever it landed.
+
+    ``langchain-openai`` reports it on the chunk's ``generation_info``; other
+    wrappers copy it onto the message's ``response_metadata``. Reading only one
+    of the two makes a truncated stream look like a model that chose to stay
+    silent, so the output-cap guard never fires.
+    """
+    message = getattr(chunk, "message", None)
+    for source in (
+        getattr(chunk, "generation_info", None),
+        getattr(message, "response_metadata", None),
+        getattr(chunk, "response_metadata", None),
+    ):
+        if isinstance(source, dict) and source.get("finish_reason"):
+            return str(source["finish_reason"])
+    return None
+
+
 class TracingChatModel(BaseChatModel):
     """Wrap a chat model to record SpanSink events and apply message compaction.
 
@@ -150,9 +169,7 @@ class TracingChatModel(BaseChatModel):
         usage: dict[str, Any] | None = None
         async for chunk in self.inner.astream(prepared, config=config, **kwargs):
             full += str(getattr(chunk, "content", "") or "")
-            metadata = getattr(chunk, "response_metadata", None) or {}
-            if metadata.get("finish_reason"):
-                finish = str(metadata["finish_reason"])
+            finish = _chunk_finish_reason(chunk) or finish
             if getattr(chunk, "usage_metadata", None):
                 usage = chunk.usage_metadata
             tool_calls += len(getattr(chunk, "tool_calls", None) or [])
@@ -212,9 +229,7 @@ class TracingChatModel(BaseChatModel):
             message = getattr(chunk, "message", None)
             if message is not None:
                 full += str(getattr(message, "content", "") or "")
-                metadata = getattr(message, "response_metadata", None) or {}
-                if metadata.get("finish_reason"):
-                    finish = str(metadata["finish_reason"])
+                finish = _chunk_finish_reason(chunk) or finish
                 if getattr(message, "usage_metadata", None):
                     usage = message.usage_metadata
                 tool_calls += len(getattr(message, "tool_calls", None) or [])

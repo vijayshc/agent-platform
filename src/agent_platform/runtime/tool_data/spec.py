@@ -43,10 +43,44 @@ PIE_TYPES = ("pie", "donut")
 #: row); the validator refuses it on any chart that groups rows, so it cannot be
 #: used to discard data.
 AGGREGATES = ("sum", "avg", "count", "min", "max", "none")
+CARD_AGGREGATES = ("sum", "avg", "count", "min", "max")
+#: Icon names a KPI card may carry. The model writes the kebab-case string; the
+#: client maps it to a Lucide component. Closed like chart types: an unknown
+#: name is rejected, so nothing arbitrary ever renders.
+CARD_ICONS = (
+    "trending-up",
+    "trending-down",
+    "wallet",
+    "shopping-cart",
+    "users",
+    "user",
+    "package",
+    "truck",
+    "piggy-bank",
+    "target",
+    "award",
+    "star",
+    "activity",
+    "bar-chart-3",
+    "line-chart",
+    "percent",
+    "hash",
+    "calendar",
+    "clock",
+    "globe",
+    "briefcase",
+    "zap",
+    "arrow-up-right",
+    "arrow-down-right",
+    "circle-check",
+    "triangle-alert",
+    "dollar-sign",
+)
 SORTS = ("asc", "desc", "x", "none")
 FORMATS = ("number", "compact", "percent", "currency")
 COLOR_BY = ("category", "series", "single")
-LAYOUTS = ("full", "half")
+LAYOUTS = ("full", "half", "third", "quarter")
+NOTE_STYLES = ("title", "insight", "info", "warning", "success")
 
 #: Keys the server adds to a spec it produced. They are stripped before
 #: validation, so a reply is idempotent under re-validation and the model cannot
@@ -81,6 +115,12 @@ CHART_SPEC_SCHEMA: dict[str, Any] = {
                 {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
             ]
         },
+        "rightAxis": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+        },
+        "rightYLabel": {"type": "string", "maxLength": 80},
         "series": {"type": "string", "minLength": 1},
         "aggregate": {"enum": list(AGGREGATES)},
         "sort": {"enum": list(SORTS)},
@@ -118,18 +158,107 @@ TABLE_SPEC_SCHEMA: dict[str, Any] = {
     },
 }
 
+_HEX_COLOR = {"type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"}
+
+CARD_SPEC_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["metric", "aggregate"],
+    "properties": {
+        "metric": {"type": "string", "minLength": 1},
+        "aggregate": {"enum": list(CARD_AGGREGATES)},
+        "title": {"type": "string", "maxLength": 200},
+        "subtitle": {"type": "string", "maxLength": 200},
+        "hint": {"type": "string", "maxLength": 200},
+        "layout": {"enum": list(LAYOUTS)},
+        "valueFormat": {"enum": list(FORMATS)},
+        "currency": {"type": "string", "pattern": "^[A-Za-z]{3}$"},
+        "deltaMetric": {"type": "string", "minLength": 1},
+        "deltaAggregate": {"enum": list(CARD_AGGREGATES)},
+        "icon": {"enum": list(CARD_ICONS)},
+        "color": _HEX_COLOR,
+        "spark": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["x"],
+            "properties": {
+                "x": {"type": "string", "minLength": 1},
+                "type": {"enum": ["line", "area", "bar"]},
+            },
+        },
+    },
+}
+
+LIST_SPEC_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["label", "value", "aggregate"],
+    "properties": {
+        "label": {"type": "string", "minLength": 1},
+        "value": {"type": "string", "minLength": 1},
+        "aggregate": {"enum": list(CARD_AGGREGATES)},
+        "limit": {"type": "integer", "minimum": 2, "maximum": 20},
+        "title": {"type": "string", "maxLength": 200},
+        "subtitle": {"type": "string", "maxLength": 200},
+        "layout": {"enum": list(LAYOUTS)},
+        "valueFormat": {"enum": list(FORMATS)},
+        "currency": {"type": "string", "pattern": "^[A-Za-z]{3}$"},
+        "color": _HEX_COLOR,
+        "variant": {"enum": ["bars", "plain", "share"]},
+        "showShare": {"type": "boolean"},
+    },
+}
+
+PROGRESS_SPEC_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["metric", "aggregate", "target"],
+    "properties": {
+        "metric": {"type": "string", "minLength": 1},
+        "aggregate": {"enum": list(CARD_AGGREGATES)},
+        "target": {"type": "number"},
+        "title": {"type": "string", "maxLength": 200},
+        "subtitle": {"type": "string", "maxLength": 200},
+        "layout": {"enum": list(LAYOUTS)},
+        "valueFormat": {"enum": list(FORMATS)},
+        "currency": {"type": "string", "pattern": "^[A-Za-z]{3}$"},
+        "color": _HEX_COLOR,
+    },
+}
+
+NOTE_SPEC_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "style": {"enum": list(NOTE_STYLES)},
+        "title": {"type": "string", "maxLength": 200},
+        "body": {"type": "string", "maxLength": 2000},
+        "layout": {"enum": list(LAYOUTS)},
+    },
+}
+
 _CHART_VALIDATOR = Draft202012Validator(CHART_SPEC_SCHEMA)
 _TABLE_VALIDATOR = Draft202012Validator(TABLE_SPEC_SCHEMA)
+_CARD_VALIDATOR = Draft202012Validator(CARD_SPEC_SCHEMA)
+_LIST_VALIDATOR = Draft202012Validator(LIST_SPEC_SCHEMA)
+_PROGRESS_VALIDATOR = Draft202012Validator(PROGRESS_SPEC_SCHEMA)
+_NOTE_VALIDATOR = Draft202012Validator(NOTE_SPEC_SCHEMA)
 
 _TABLE_KEYS = frozenset(TABLE_SPEC_SCHEMA["properties"])
 #: Fields that only make sense on a chart. A table block carrying them is the
 #: model using the wrong fence, which is worth saying in those words.
 _CHART_ONLY_KEYS = frozenset(CHART_SPEC_SCHEMA["properties"]) - _TABLE_KEYS
 
-FENCE_OPEN = re.compile(r"^(`{3,}|~{3,})(.*)$")
-FENCE_CLOSE = re.compile(r"^(`{3,}|~{3,})\s*$")
-TOKEN = re.compile(r"^\s*#(CHART|TABLE)_([A-Za-z0-9][A-Za-z0-9_-]*)\s*(.*)$")
-_DATA_FENCES = frozenset({"chart", "table"})
+#: A ``#CHART_<ref>`` / ``#TABLE_<ref>`` / ``#CARD_<ref>`` / ``#LIST_<ref>`` /
+#: ``#PROGRESS_<ref>`` placeholder at the start of a line, plus bare ``#NOTE``.
+DATA_TOKEN = re.compile(r"^\s*#(CHART|TABLE|CARD|LIST|PROGRESS)_([A-Za-z0-9][A-Za-z0-9_-]*)\s*(.*)$")
+NOTE_TOKEN = re.compile(r"^\s*#NOTE\s*(.*)$")
+#: Back-compat alias: the old two-kind placeholder.
+TOKEN = DATA_TOKEN
 
 
 class SpecError(ValueError):
@@ -144,18 +273,6 @@ class Block:
     ref: str
     spec: dict[str, Any]
     raw: str
-
-
-def _fence_language(info: str) -> str:
-    """The first word of a fence info string.
-
-    Splits on whitespace **or** ``{`` so ```` ```chart{…} ```` is recognised as a
-    chart fence here exactly as the client and the reference scan recognise it.
-    """
-    stripped = info.strip()
-    if not stripped:
-        return ""
-    return re.split(r"[\s{]", stripped, maxsplit=1)[0].lower()
 
 
 def _balanced_json(text: str) -> str | None:
@@ -197,106 +314,65 @@ def _parse_object(text: str) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _block_from_body(body: list[str]) -> Block | None:
-    start = next((index for index, line in enumerate(body) if line.strip()), -1)
-    if start < 0:
-        return None
-    match = TOKEN.match(body[start])
-    if match is None:
-        return None
-    rest = "\n".join([match.group(3) or "", *body[start + 1 :]])
-    kind = "chart" if match.group(1).upper() == "CHART" else "table"
-    return Block(kind=kind, ref=match.group(2), spec=_parse_object(rest), raw="\n".join(body))
+def _collect_spec(lines: list[str], index: int, inline: str) -> tuple[dict[str, Any], int]:
+    """The JSON object at/after ``index`` plus the last line it spans."""
+    cursor = index
+    if not inline:
+        # A spec may follow on the next line, but only when that line
+        # actually opens one: a bare placeholder followed by prose must not
+        # swallow the prose into an empty spec.
+        if index + 1 < len(lines) and lines[index + 1].strip().startswith("{"):
+            cursor = index + 1
+            inline = lines[cursor]
+    while inline and _balanced_json(inline) is None and cursor + 1 < len(lines):
+        cursor += 1
+        inline = f"{inline}\n{lines[cursor]}"
+    return _parse_object(inline), cursor
 
 
-def split_reply(text: str) -> list[Block | str]:
-    """The reply as an ordered list of markdown strings and data blocks.
+def extract_blocks(text: str) -> list[Block]:
+    """Every chart/table/dashboard block the reply names, in order.
 
-    Mirrors the client parser's block boundaries. Only the two documented forms
-    are blocks — a fenced ``chart``/``table`` body whose first line is the
-    placeholder, or a bare placeholder line. Everything else, including a
-    placeholder written inside an ordinary code fence, is prose.
+    Markdown structure is the renderer's business. This only pairs a
+    ``#CHART_<ref>`` / ``#TABLE_<ref>`` / ``#CARD_<ref>`` / ``#LIST_<ref>`` /
+    ``#PROGRESS_<ref>`` / ``#NOTE`` placeholder with the JSON object that
+    follows it, so validation needs no second markdown parser.
     """
     lines = (text or "").replace("\r\n", "\n").split("\n")
-    segments: list[Block | str] = []
-    buffer: list[str] = []
-
-    def flush() -> None:
-        if buffer:
-            joined = "\n".join(buffer)
-            if joined.strip():
-                segments.append(joined)
-            buffer.clear()
-
+    blocks: list[Block] = []
     index = 0
     while index < len(lines):
-        line = lines[index]
-        opener = FENCE_OPEN.match(line.strip())
-        if opener:
-            marker = opener.group(1)[0]
-            length = len(opener.group(1))
-            language = _fence_language(opener.group(2) or "")
-            end = index + 1
-            closed = False
-            while end < len(lines):
-                closer = FENCE_CLOSE.match(lines[end].strip())
-                if closer and closer.group(1)[0] == marker and len(closer.group(1)) >= length:
-                    closed = True
-                    break
-                end += 1
-            stop = end if closed else len(lines)
-            if language in _DATA_FENCES:
-                block = _block_from_body(lines[index + 1 : stop])
-                if block is not None:
-                    flush()
-                    segments.append(block)
-                    index = stop + 1 if closed else len(lines)
-                    continue
-            buffer.extend(lines[index:stop])
-            index = stop + 1 if closed else len(lines)
-            continue
-
-        token = TOKEN.match(line)
-        if token:
-            kind = "chart" if token.group(1).upper() == "CHART" else "table"
-            inline = (token.group(3) or "").strip()
-            cursor = index
-            if not inline:
-                # A spec may follow on the next line, but only when that line
-                # actually opens one: a bare placeholder followed by prose must
-                # not swallow the prose into an empty spec.
-                if index + 1 < len(lines) and lines[index + 1].strip().startswith("{"):
-                    cursor = index + 1
-                    inline = lines[cursor]
-            while inline and _balanced_json(inline) is None and cursor + 1 < len(lines):
-                cursor += 1
-                inline = f"{inline}\n{lines[cursor]}"
-            flush()
-            segments.append(Block(kind=kind, ref=token.group(2), spec=_parse_object(inline), raw=line))
+        note = NOTE_TOKEN.match(lines[index])
+        if note is not None:
+            inline = (note.group(1) or "").strip()
+            spec, cursor = _collect_spec(lines, index, inline)
+            blocks.append(
+                Block(
+                    kind="note",
+                    ref="",
+                    spec=spec,
+                    raw="\n".join(lines[index : cursor + 1]),
+                )
+            )
             index = cursor + 1
             continue
-
-        buffer.append(line)
-        index += 1
-    flush()
-    return _collapse_bare_lead_ins(segments)
-
-
-def _collapse_bare_lead_ins(segments: list[Block | str]) -> list[Block | str]:
-    """Drop a bare placeholder that the fenced block right after it repeats."""
-    cleaned: list[Block | str] = []
-    for index, segment in enumerate(segments):
-        following = segments[index + 1] if index + 1 < len(segments) else None
-        if (
-            isinstance(segment, Block)
-            and not segment.spec
-            and isinstance(following, Block)
-            and following.kind == segment.kind
-            and following.ref == segment.ref
-        ):
+        token = DATA_TOKEN.match(lines[index])
+        if token is None:
+            index += 1
             continue
-        cleaned.append(segment)
-    return cleaned
+        kind = token.group(1).lower()
+        inline = (token.group(3) or "").strip()
+        spec, cursor = _collect_spec(lines, index, inline)
+        blocks.append(
+            Block(
+                kind=kind,
+                ref=token.group(2),
+                spec=spec,
+                raw="\n".join(lines[index : cursor + 1]),
+            )
+        )
+        index = cursor + 1
+    return blocks
 
 
 # ------------------------------------------------------------------ validation
@@ -448,6 +524,30 @@ def validate_chart(
     if stacked and base_type not in ("bar", "area"):
         raise SpecError(f"a stacked chart must be a bar or area chart, not {chart_type!r}")
 
+    # A second axis lets two measures on incomparable scales (order counts vs
+    # basket dollars) share one chart without the smaller flattening to zero.
+    # It is an explicit model choice naming y measures, never a server guess.
+    right_names: list[str] = []
+    if model_spec.get("rightAxis"):
+        if base_type not in ("bar", "line", "area"):
+            raise SpecError(
+                f"a second axis needs a bar, line or area chart, not {chart_type!r}"
+            )
+        if stacked:
+            raise SpecError("a stacked chart shares one total, so it cannot use a second axis")
+        y_names = [column.name for column in y_columns]
+        for name in model_spec["rightAxis"]:
+            match = next((item for item in y_names if item.lower() == str(name).lower()), None)
+            if match is None:
+                raise SpecError(f"rightAxis column {name!r} is not one of this chart's y measures")
+            if match != name:
+                diagnostics.append(f"rightAxis column matched case-insensitively: {name} → {match}")
+            if match in right_names:
+                raise SpecError(f"rightAxis column {match!r} is listed more than once")
+            right_names.append(match)
+        if len(right_names) >= len(y_names):
+            raise SpecError("rightAxis must leave at least one measure on the left axis")
+
     rows = table.rows
     if chart_type != "scatter" and rows:
         x_position = columns.index(x_column)
@@ -498,6 +598,13 @@ def validate_chart(
     for key in ("title", "subtitle", "xLabel", "yLabel", "currency"):
         if model_spec.get(key):
             normalized[key] = model_spec[key]
+    if right_names:
+        normalized["rightAxis"] = list(right_names)
+        diagnostics.append(
+            f"{', '.join(right_names)} plotted on a right axis (separate scale)"
+        )
+    if model_spec.get("rightYLabel"):
+        normalized["rightYLabel"] = model_spec["rightYLabel"]
     if model_spec.get("limit"):
         normalized["limit"] = int(model_spec["limit"])
         if chart_type != "scatter":
@@ -547,57 +654,233 @@ def validate_table(spec: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-# ------------------------------------------------------------------- rewriting
+def _check_measure(columns: list[Column], name: str, aggregate: str) -> Column:
+    """The measure column ``name`` refers to, checked against ``aggregate``."""
+    column, _ = _resolve(columns, name)
+    if aggregate == "count":
+        if column.type == "unknown":
+            raise SpecError(
+                f"metric column {column.name!r} has no values to count; use a column with values"
+            )
+        return column
+    if column.type not in NUMERIC_TYPES:
+        raise SpecError(
+            f"metric column {column.name!r} is {column.type}, not a measure; "
+            f"chart a numeric column instead"
+        )
+    return column
 
 
-def _render_block(block: Block, spec: dict[str, Any], ref: str) -> str:
-    token = f"#{'CHART' if block.kind == 'chart' else 'TABLE'}_{ref}"
-    # A table with nothing to say but the default layout is written as the bare
-    # placeholder; anything else must keep its fence so the field is not lost.
-    if block.kind == "table" and spec == {"layout": "full"}:
-        return token
-    body = json.dumps(spec, ensure_ascii=False, indent=2)
-    return f"```{block.kind}\n{token}\n{body}\n```"
+def validate_card(spec: dict[str, Any], table: ToolData) -> dict[str, Any]:
+    """The canonical KPI card spec, or a :class:`SpecError`."""
+    if spec.get("error") and set(spec) == {"error"}:
+        raise SpecError(str(spec["error"]))
+    model_spec = {key: value for key, value in spec.items() if key not in SERVER_SPEC_KEYS}
+    problem = _schema_error(_CARD_VALIDATOR, model_spec)
+    if problem:
+        raise SpecError(problem)
+    columns = list(table.columns)
+    metric = _check_measure(columns, str(model_spec["metric"]), str(model_spec["aggregate"]))
+    diagnostics: list[str] = []
+    normalized: dict[str, Any] = {
+        "metric": metric.name,
+        "aggregate": str(model_spec["aggregate"]),
+        "layout": str(model_spec.get("layout") or "full"),
+        "valueFormat": str(model_spec.get("valueFormat") or "number"),
+    }
+    if model_spec.get("deltaMetric"):
+        delta = _check_measure(
+            columns, str(model_spec["deltaMetric"]), str(model_spec.get("deltaAggregate") or "sum")
+        )
+        normalized["deltaMetric"] = delta.name
+        normalized["deltaAggregate"] = str(model_spec.get("deltaAggregate") or "sum")
+    spark = model_spec.get("spark")
+    if isinstance(spark, dict) and spark.get("x"):
+        x_column, _ = _resolve(columns, str(spark["x"]))
+        normalized["spark"] = {
+            "x": x_column.name,
+            "type": str(spark.get("type") or "area"),
+        }
+    for key in ("title", "subtitle", "hint", "currency", "icon", "color"):
+        if model_spec.get(key):
+            normalized[key] = model_spec[key]
+    if not table.rows:
+        diagnostics.append("the cached result has no rows; the card shows 0")
+    if table.truncated:
+        diagnostics.append(
+            f"built from {table.returned_rows} of {table.total_rows} rows (cache limit)"
+        )
+    if diagnostics:
+        normalized["diagnostics"] = diagnostics
+    return normalized
 
 
-def normalize_reply(
+def validate_list(spec: dict[str, Any], table: ToolData) -> dict[str, Any]:
+    """The canonical leaderboard spec, or a :class:`SpecError`."""
+    if spec.get("error") and set(spec) == {"error"}:
+        raise SpecError(str(spec["error"]))
+    model_spec = {key: value for key, value in spec.items() if key not in SERVER_SPEC_KEYS}
+    problem = _schema_error(_LIST_VALIDATOR, model_spec)
+    if problem:
+        raise SpecError(problem)
+    columns = list(table.columns)
+    label_column, _ = _resolve(columns, str(model_spec["label"]))
+    if label_column.type == "unknown":
+        raise SpecError(f"label column {label_column.name!r} has no values to list")
+    value_column = _check_measure(columns, str(model_spec["value"]), str(model_spec["aggregate"]))
+    if label_column.name == value_column.name:
+        raise SpecError(f"column {label_column.name!r} cannot be both label and value")
+    normalized: dict[str, Any] = {
+        "label": label_column.name,
+        "value": value_column.name,
+        "aggregate": str(model_spec["aggregate"]),
+        "limit": int(model_spec.get("limit") or 8),
+        "layout": str(model_spec.get("layout") or "full"),
+        "valueFormat": str(model_spec.get("valueFormat") or "number"),
+    }
+    for key in ("title", "subtitle", "currency", "color", "variant"):
+        if model_spec.get(key):
+            normalized[key] = model_spec[key]
+    if model_spec.get("showShare") is not None:
+        normalized["showShare"] = bool(model_spec["showShare"])
+    if table.truncated:
+        normalized["diagnostics"] = [
+            f"built from {table.returned_rows} of {table.total_rows} rows (cache limit)"
+        ]
+    return normalized
+
+
+def validate_progress(spec: dict[str, Any], table: ToolData) -> dict[str, Any]:
+    """The canonical progress-to-target spec, or a :class:`SpecError`."""
+    if spec.get("error") and set(spec) == {"error"}:
+        raise SpecError(str(spec["error"]))
+    model_spec = {key: value for key, value in spec.items() if key not in SERVER_SPEC_KEYS}
+    problem = _schema_error(_PROGRESS_VALIDATOR, model_spec)
+    if problem:
+        raise SpecError(problem)
+    try:
+        target = float(model_spec["target"])
+    except (TypeError, ValueError):
+        raise SpecError("target must be a number")
+    import math as _math
+
+    if not _math.isfinite(target) or target <= 0:
+        raise SpecError("target must be a positive number")
+    columns = list(table.columns)
+    metric = _check_measure(columns, str(model_spec["metric"]), str(model_spec["aggregate"]))
+    normalized: dict[str, Any] = {
+        "metric": metric.name,
+        "aggregate": str(model_spec["aggregate"]),
+        "target": target,
+        "layout": str(model_spec.get("layout") or "full"),
+        "valueFormat": str(model_spec.get("valueFormat") or "number"),
+    }
+    for key in ("title", "subtitle", "currency", "color"):
+        if model_spec.get(key):
+            normalized[key] = model_spec[key]
+    if table.truncated:
+        normalized["diagnostics"] = [
+            f"built from {table.returned_rows} of {table.total_rows} rows (cache limit)"
+        ]
+    return normalized
+
+
+def validate_note(spec: dict[str, Any]) -> dict[str, Any]:
+    """The canonical textbox spec. It carries no data reference."""
+    if spec.get("error") and set(spec) == {"error"}:
+        raise SpecError(str(spec["error"]))
+    model_spec = {key: value for key, value in spec.items() if key not in SERVER_SPEC_KEYS}
+    problem = _schema_error(_NOTE_VALIDATOR, model_spec)
+    if problem:
+        raise SpecError(problem)
+    normalized: dict[str, Any] = {
+        "style": str(model_spec.get("style") or "info"),
+        "layout": str(model_spec.get("layout") or "full"),
+    }
+    if model_spec.get("title"):
+        normalized["title"] = model_spec["title"]
+    if model_spec.get("body"):
+        normalized["body"] = model_spec["body"]
+    if not normalized.get("title") and not normalized.get("body"):
+        raise SpecError("a note needs a title and/or a body to show")
+    return normalized
+
+
+# ------------------------------------------------------------------ validation
+
+
+def validate_reply(
     text: str | None,
     scope: ToolDataScope | None,
     store: ToolDataStore | None = None,
-) -> tuple[str, list[dict[str, Any]]]:
-    """Rewrite every resolvable chart/table block with its validated spec.
+) -> list[dict[str, Any]]:
+    """The chart/table blocks in ``text`` that cannot be drawn from their data.
 
-    Returns the rewritten reply and a per-block report (for tracing and tests).
-    A block whose reference has no cached data is left as the model wrote it, so
-    the chat can say the data is gone rather than inventing a chart.
+    Returns one ``{"kind", "ref", "error"}`` per problem block, in order. A
+    reference that matches nothing is reported too: the model wrote it wrong
+    (usually by appending a suffix to the ref the tool printed), and it can fix
+    the reply far better than the user can.
     """
     cache = store or TOOL_DATA_STORE
-    segments = split_reply(text or "")
-    rendered: list[str] = []
-    report: list[dict[str, Any]] = []
-    for segment in segments:
-        if isinstance(segment, str):
-            rendered.append(segment)
+    problems: list[dict[str, Any]] = []
+    for block in extract_blocks(text or ""):
+        if block.kind == "note":
+            try:
+                validate_note(block.spec)
+            except SpecError as exc:
+                problems.append({"kind": block.kind, "ref": block.ref, "error": str(exc)})
             continue
-        table = cache.resolve(scope, segment.ref)
+        table = cache.resolve(scope, block.ref)
         if table is None:
-            report.append({"kind": segment.kind, "ref": segment.ref, "status": "unresolved"})
-            rendered.append(segment.raw)
+            problems.append(
+                {
+                    "kind": block.kind,
+                    "ref": block.ref,
+                    "error": (
+                        f"no cached result matches the reference {block.ref!r}; use the exact "
+                        "reference the tool result printed (for example D1), with no suffix"
+                    ),
+                }
+            )
             continue
         try:
-            if segment.kind == "chart":
-                spec, diagnostics = validate_chart(segment.spec, table)
+            if block.kind == "chart":
+                validate_chart(block.spec, table)
+            elif block.kind == "card":
+                validate_card(block.spec, table)
+            elif block.kind == "list":
+                validate_list(block.spec, table)
+            elif block.kind == "progress":
+                validate_progress(block.spec, table)
             else:
-                spec, diagnostics = validate_table(segment.spec), []
-            report.append(
-                {"kind": segment.kind, "ref": segment.ref, "status": "ok", "diagnostics": diagnostics}
-            )
+                validate_table(block.spec)
         except SpecError as exc:
-            report.append(
-                {"kind": segment.kind, "ref": segment.ref, "status": "error", "error": str(exc)}
-            )
-            spec = {"error": str(exc)}
-        # The token is rewritten to the resolved reference, so a reply that used
-        # the provider's long call id still names the data the payload is keyed by.
-        rendered.append(_render_block(segment, spec, table.key))
-    return "\n\n".join(part for part in rendered if part.strip()), report
+            problems.append({"kind": block.kind, "ref": block.ref, "error": str(exc)})
+    return problems
+
+
+def chart_feedback(problems: list[dict[str, Any]]) -> str:
+    """The correction message sent back to the model when a block cannot be drawn.
+
+    It asks for *only* the broken block(s), not the whole answer: the server
+    keeps the previous reply and splices each corrected block back into it
+    (see ``repair.splice_blocks``), so re-sending the nine blocks that already
+    draw wastes tokens and risks the model dropping or rewording them. The
+    ``[chart-repair]`` prefix marks this as a platform notice, so the model never
+    mistakes it for something the user said.
+    """
+    lines = [
+        "[chart-repair] Your last reply's chart/table block(s) below could not be drawn from the "
+        "data they reference. Reply again with ONLY the corrected block line(s) — one "
+        "#CHART_/#TABLE_/#CARD_/#LIST_/#PROGRESS_ line plus its JSON object per problem — "
+        "and nothing else. Do not repeat the explanation or the blocks that already draw, "
+        "do not drop or summarise anything, and do not call the tool again: "
+        "the data is already cached and the server will splice your corrected block(s) "
+        "back into your previous reply.",
+        "",
+    ]
+    for problem in problems:
+        ref = str(problem.get("ref") or "")
+        label = f"#{str(problem['kind']).upper()}" + (f"_{ref}" if ref else "")
+        lines.append(f"- {label}: {problem['error']}")
+    return "\n".join(lines)

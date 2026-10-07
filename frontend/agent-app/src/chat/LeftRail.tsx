@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, PanelLeftClose, Search, Workflow } from "lucide-react";
+import { Bot, PanelLeftClose, Search } from "lucide-react";
 import type { Conversation } from "../types";
 import { conversationTitle, formatChatWhen, groupedConversations } from "./chatLogic";
 
@@ -58,7 +58,6 @@ export function LeftRail({
   onLoadMore,
   hasMore,
   loadingMore,
-  showAutomations,
 }: {
   collapses: boolean;
   conversations: Conversation[];
@@ -73,7 +72,6 @@ export function LeftRail({
   onLoadMore: () => void;
   hasMore: boolean;
   loadingMore: boolean;
-  showAutomations: boolean;
 }) {
   const [hover, setHover] = useState<HoverState>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -151,15 +149,6 @@ export function LeftRail({
           </span>
           <span className="aa-rail-item-label">New Chat</span>
         </button>
-
-        {showAutomations && (
-          <a className="aa-rail-item" href="/agent-studio" data-testid="rail-automations" title="Agent Studio">
-            <span className="aa-rail-item-icon">
-              <Workflow size={16} />
-            </span>
-            <span className="aa-rail-item-label">Automations</span>
-          </a>
-        )}
       </div>
 
       <div className="aa-rail-search">

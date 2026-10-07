@@ -31,6 +31,13 @@ TEXT2SQL_BINDING = {
         "execute_sql_query",
     ],
     "approval": [],
+    # ``execute_sql_query`` returns the typed-table contract. Declaring it a data
+    # tool is what caches the full result, clips the rows the model reads, and
+    # emits the reference the chat renders a table or chart from
+    # (``src/agent_platform/runtime/tool_data``). Without this declaration the
+    # contract arrives but nothing samples, caches or charts it - and a re-seed
+    # would drop the setting again, so it belongs in the sample.
+    "tool_data": {"execute_sql_query": {"sample": True, "sample_rows": 2, "cache_rows": 1000}},
 }
 
 KNOWLEDGE_BINDING = {
@@ -59,7 +66,7 @@ KNOWLEDGE_AGENT = {
         "Always provide grounded answers with citations to the referenced documents."
     ),
     "model": DEFAULT_MODEL,
-    "default_options": {"temperature": 0.1, "max_tokens": 8000},
+    "default_options": {"temperature": 0.1},
     "mcp_bindings": [KNOWLEDGE_BINDING],
     "maf_skill_ids": [],
     "middleware": [],
@@ -76,9 +83,9 @@ TEXT2SQL_AGENT = {
         "safely execute SQL with execute_sql_query, and format the output as a Markdown table."
     ),
     "model": DEFAULT_MODEL,
-    "default_options": {"temperature": 0.1, "max_tokens": 8000},
+    "default_options": {"temperature": 0.1},
     "mcp_bindings": [TEXT2SQL_BINDING],
-    "maf_skill_ids": ["text2sql"],
+    "maf_skill_ids": ["text2sql", "dashboard-building"],
     "middleware": [],
 }
 
@@ -93,7 +100,7 @@ DEVELOPER = {
         "venv or worktree. Use the application interpreter."
     ),
     "model": DEFAULT_MODEL,
-    "default_options": {"temperature": 0.2, "max_tokens": 8000},
+    "default_options": {"temperature": 0.2},
     "mcp_bindings": [WORKSPACE_WRITE],
     "maf_skill_ids": ["implementation"],
     # Demo fixture: this agent exists to fix defects in a seeded sample service.
@@ -111,7 +118,7 @@ DEEP_AGENT = {
         "track todos, and give clear multi-turn progress summaries. Do not write files unless asked."
     ),
     "model": DEFAULT_MODEL,
-    "default_options": {"temperature": 0.1, "max_tokens": 700},
+    "default_options": {"temperature": 0.1},
     "recursion_limit": 16,
     "mcp_bindings": [WORKSPACE_READ],
     "middleware": [],
@@ -125,7 +132,7 @@ RESEARCH_SUPERVISOR = {
     "description": "Supervisor team: Coordinator delegates to a data researcher and a writer.",
     "model": DEFAULT_MODEL,
     "recursion_limit": 25,
-    "default_options": {"temperature": 0.1, "max_tokens": 700},
+    "default_options": {"temperature": 0.1},
     "manager": {
         "name": "Coordinator",
         "instructions": (
@@ -162,7 +169,7 @@ SUPPORT_SWARM = {
     "description": "Support swarm: Concierge hands off to SQL or code specialists.",
     "model": DEFAULT_MODEL,
     "recursion_limit": 25,
-    "default_options": {"temperature": 0.1, "max_tokens": 700},
+    "default_options": {"temperature": 0.1},
     "start_agent": "Concierge",
     "handoffs": [
         {"from": "Concierge", "to": "SqlDesk"},
@@ -207,7 +214,7 @@ REVIEW_GRAPH = {
     "description": "Review graph: Intake frames the question, Analyst investigates, Closer answers.",
     "model": DEFAULT_MODEL,
     "recursion_limit": 25,
-    "default_options": {"temperature": 0.1, "max_tokens": 700},
+    "default_options": {"temperature": 0.1},
     "entry": "Intake",
     "nodes": [
         {

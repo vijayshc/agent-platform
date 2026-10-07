@@ -1,7 +1,9 @@
-/** Agent Studio shell: left rail | canvas | right inspector | bottom run dock.
+/** Agent Studio shell: left rail | canvas | right inspector.
  *
  * Composition only — `useStudioDocument` owns the API/state machine, the canvas
  * reducer owns nodes/edges, and each surface owns its own presentation.
+ * Testing an agent means opening it in the real chat page (`/agent?agent=`),
+ * including saved-but-unpublished drafts — there is no embedded run dock.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
@@ -23,9 +25,9 @@ import { instantiateTemplate } from "./model/templates";
 import type { NodeData, RouterRoute, StudioEdge, StudioNode } from "./model/types";
 import { DockGrip, Inspector, type InspectorTab } from "./inspector/Inspector";
 import { Palette } from "./palette/Palette";
-import { RunDock } from "./run/RunDock";
 import { AccessDialog } from "./inspector/AccessDialog";
 import { StudioToolbar } from "./StudioToolbar";
+import { VersionHistory } from "./VersionHistory";
 import { useStudioDocument } from "./useStudioDocument";
 
 /** Attach validate/compile messages to the node whose name they mention. */
@@ -71,12 +73,10 @@ export function StudioApp() {
     focusChecks,
     onFocusChecks,
     fitToken,
-    docId,
     setStatus,
     save,
     validate,
     publish,
-    draftDefinition,
     openSlug,
     newAgent,
     exportJson,
@@ -108,7 +108,7 @@ export function StudioApp() {
   }, [dockWidth]);
 
   const [accessOpen, setAccessOpen] = useState(false);
-  const [runOpen, setRunOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { getViewport, setCenter, setViewport, screenToFlowPosition } = useReactFlow();
 
   const [dockOverlay, setDockOverlay] = useState(() => window.innerWidth < DOCK_OVERLAY_MAX);
@@ -278,7 +278,7 @@ export function StudioApp() {
   useEffect(() => {
     pendingFit.current = FIT_FLOOR;
     setSettleTick((tick) => tick + 1);
-  }, [runOpen, dockOpen, paletteOpen]);
+  }, [dockOpen, paletteOpen]);
 
   /** Manual "Fit": everything visible first, then the reading floor. */
   const fitNow = useCallback(() => {
@@ -503,7 +503,6 @@ export function StudioApp() {
     [catalog, dispatch, nodes],
   );
 
-  const draft = draftDefinition();
   const onConnect = useCallback(
     (connection: { source?: string | null; target?: string | null; sourceHandle?: string | null; targetHandle?: string | null }) => {
       if (!connection.source || !connection.target) return;
@@ -542,7 +541,14 @@ export function StudioApp() {
         onSave={() => void save(false)}
         onValidate={() => void validate()}
         onPublish={() => void publish()}
-        onTest={() => setRunOpen(true)}
+        onTest={() => {
+          const slug = current?.slug?.trim();
+          if (!slug) {
+            setStatus("Save first, then test in chat");
+            return;
+          }
+          window.open(`/agent?agent=${encodeURIComponent(slug)}`, "_blank", "noopener");
+        }}
         onUndo={() => dispatch({ type: "undo" })}
         onRedo={() => dispatch({ type: "redo" })}
         onTidy={tidy}
@@ -550,6 +556,7 @@ export function StudioApp() {
         onExport={exportJson}
         onImport={importJson}
         onAccess={() => setAccessOpen(true)}
+        onHistory={() => setHistoryOpen(true)}
       />
 
       <div
@@ -752,19 +759,15 @@ export function StudioApp() {
         ) : null}
       </div>
 
-      {runOpen ? (
-        <RunDock
-          key={docId}
-          catalog={catalog}
-          slug={current?.slug ?? null}
-          agentName={meta.name || "Untitled"}
-          draftDefinition={draft}
-          open={runOpen}
-          onClose={() => setRunOpen(false)}
+      {accessOpen && current ? <AccessDialog agent={current} onClose={() => setAccessOpen(false)} /> : null}
+      {historyOpen && current ? (
+        <VersionHistory
+          slug={current.slug}
+          current={current}
+          onClose={() => setHistoryOpen(false)}
+          onReload={(slug) => void openSlug(slug)}
         />
       ) : null}
-
-      {accessOpen && current ? <AccessDialog agent={current} onClose={() => setAccessOpen(false)} /> : null}
       {accessOpen && !current ? (
         <div className="as-overlay" onMouseDown={() => setAccessOpen(false)}>
           <div className="as-dialog" role="dialog" aria-modal="true" aria-label="Access">

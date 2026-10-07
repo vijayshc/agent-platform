@@ -118,9 +118,9 @@ export function agentSpecFromData(data: NodeData): AgentSpec {
     runtime,
   };
   if (data.maxContextWindowTokens) spec.maxContextWindowTokens = data.maxContextWindowTokens;
-  if (data.modelClient || data.modelName) {
-    spec.model = { client: data.modelClient || "default", name: data.modelName || null };
-  }
+  // Agents never pin a connection: the model is chosen per run (chat model
+  // picker), so no `model` key is written. Any legacy `modelClient`/`modelName`
+  // on the canvas is authoring residue and is deliberately dropped here.
   if (data.temperature != null || data.maxTokens != null) {
     spec.default_options = {
       ...(data.temperature != null ? { temperature: data.temperature } : {}),
@@ -186,7 +186,6 @@ function parsePermissions(raw: unknown): DeepPermission[] {
 export function applySpecToAgentData(
   data: NodeData,
   spec: AgentSpec,
-  fallbackModel?: { client?: string; name?: string | null },
 ): NodeData {
   const next: NodeData = { ...data };
   const runtime = spec.runtime === "harness" ? "deep_agent" : spec.runtime || runtimeOf(data);
@@ -196,9 +195,11 @@ export function applySpecToAgentData(
   next.label = next.name;
   next.instructions = String(spec.instructions ?? "");
   next.description = String(spec.description ?? "");
-  const model = asRecord(spec.model ?? fallbackModel);
-  if (model.client) next.modelClient = String(model.client);
-  if (model.name != null) next.modelName = String(model.name);
+  // Agent→model linking was removed: a legacy `model` pin on a saved spec is
+  // normalised to "follow the run" instead of being carried onto the canvas
+  // (where the next save would re-persist it and keep overriding the chat pick).
+  next.modelClient = "default";
+  next.modelName = "";
   const options = asRecord(spec.default_options);
   if (typeof options.temperature === "number") next.temperature = options.temperature;
   if (typeof options.max_tokens === "number") next.maxTokens = options.max_tokens;
@@ -470,17 +471,10 @@ export function graphToConfig(
   const blocks = nodes.filter((n) => !isAgentType(n.data.paletteType) && !isPatternType(n.data.paletteType));
   const studio = studioLayer(nodes, edges, viewport);
   const primary = agents[0];
-  const primaryModel = primary ? agentSpecFromData(primary.data).model : undefined;
-  // An agent runs on its own connection; the toolbar picker is the flow-level
-  // model that participants inherit and only wins for multi-node flows.
-  const agentModel = {
-    client: primaryModel?.client || meta.modelClient || "default",
-    name: primaryModel?.name ?? (meta.modelName || null),
-  };
-  const flowModel = {
-    client: meta.modelClient || primaryModel?.client || "default",
-    name: meta.modelName || primaryModel?.name || null,
-  };
+  // An agent never pins a connection: the run-level (chat) model always wins.
+  // Both layers are written as "default" so a legacy pin cannot survive a save.
+  const agentModel = { client: "default", name: null };
+  const flowModel = { client: "default", name: null };
 
   if (agents.length <= 1 && !patterns.length && !blocks.length) {
     const spec = primary ? agentSpecFromData(primary.data) : {};

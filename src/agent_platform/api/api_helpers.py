@@ -125,6 +125,32 @@ def require_studio(min_level: str | None = None):
     return None
 
 
+def draft_run_denied(row: dict[str, Any] | None, user_id: int | None = None):
+    """Extra gate for running an UNPUBLISHED (draft) agent.
+
+    Published agents keep their existing rule (agent access only). A draft may
+    run iff the caller passes the canonical agent-access rule
+    (:func:`agent_access_allowed` — owner / granted role / admin) AND holds
+    agent_studio write access. An EXISTING draft the caller cannot access
+    answers 403; 404 is reserved for genuinely absent agents and is resolved
+    before this gate (``DefinitionStore.resolve`` returning ``None``).
+    Agent-authorized callers without Studio write get the standard 403.
+    """
+    if not row or row.get("published"):
+        return None
+    uid = user_id if user_id is not None else current_user_id()
+    if not agent_access_allowed(row, uid):
+        g.audit_reason = "no access to this agent"
+        return {"error": "forbidden", "message": "You do not have access to this agent"}, 403
+    if not can_studio(min_level="write"):
+        g.audit_reason = "missing agent_studio module access"
+        return (
+            {"error": "forbidden", "message": "Agent Studio requires agent_studio module access"},
+            403,
+        )
+    return None
+
+
 def definition_summary(row: dict[str, Any]) -> dict[str, Any]:
     """Config-derived fields the Studio reads at the top level of a definition.
 
@@ -174,6 +200,22 @@ def full_definition(row: dict[str, Any]) -> dict[str, Any]:
     out["config"] = mask_value(out.get("config") or {})
     if "id" in out and out["id"] is not None:
         out["access"] = DefinitionStore.list_access(int(out["id"]))
+        try:
+            out["published_version"] = DefinitionStore.published_version(int(out["id"]))
+        except Exception:
+            out["published_version"] = None
+        try:
+            out["has_draft_changes"] = DefinitionStore.has_draft_changes(int(out["id"]))
+        except Exception:
+            out["has_draft_changes"] = False
+        try:
+            out["versions_count"] = DefinitionStore.versions_count(int(out["id"]))
+        except Exception:
+            out["versions_count"] = 0
+    else:
+        out.setdefault("published_version", None)
+        out.setdefault("has_draft_changes", False)
+        out.setdefault("versions_count", 0)
     # The Studio hides manage/publish affordances on definitions the caller
     # cannot administer; the server is still the authority (every mutation
     # re-checks and answers 403).
@@ -200,6 +242,8 @@ def public_definition(row: dict[str, Any]) -> dict[str, Any]:
         "model": cfg.get("model"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
+        "created_by_name": row.get("created_by_name"),
+        "updated_by_name": row.get("updated_by_name"),
         "studio": studio_meta,
     }
 
@@ -277,13 +321,20 @@ def reject_invalid_definition(row: dict[str, Any] | None):
     return None
 
 
-def validate_definition_report(definition: dict[str, Any]) -> dict[str, Any]:
+def validate_definition_report(
+    definition: dict[str, Any], *, user_id: int | None = None
+) -> dict[str, Any]:
     """The Studio's validate contract (docs/agent-studio-v2.md §3).
 
     ``ok``/``errors``/``warnings`` are the authoring report (each entry carries the
     code the editor keys on), and ``compile`` says whether the definition also
     builds a real graph. Both halves are always present so the editor can render
     "valid but does not compile" instead of guessing.
+
+    ``user_id`` is the author validating. A structural compile opens no MCP
+    session, but a binding to a server this host serves is still the calling
+    user's connection, so the identity is threaded through exactly as a run
+    threads it - one rule, no special case for the editor.
     """
     report = validate_definition(definition)
     errors = list(report.get("errors") or [])
@@ -294,7 +345,7 @@ def validate_definition_report(definition: dict[str, Any]) -> dict[str, Any]:
         from src.agent_platform.runtime.compiler import compile_definition_sync
 
         try:
-            compiled = compile_definition_sync(definition)
+            compiled = compile_definition_sync(definition, user_id=user_id)
             nodes = getattr(compiled.runnable, "nodes", None)
             compile_info = {
                 "ok": True,
@@ -309,9 +360,11 @@ def validate_definition_report(definition: dict[str, Any]) -> dict[str, Any]:
     return {"ok": ok, "errors": errors, "warnings": warnings, "compile": compile_info}
 
 
-def validate_and_compile(definition: dict[str, Any]) -> dict[str, Any]:
+def validate_and_compile(
+    definition: dict[str, Any], *, user_id: int | None = None
+) -> dict[str, Any]:
     """Backwards-compatible summary of :func:`validate_definition_report`."""
-    report = validate_definition_report(definition)
+    report = validate_definition_report(definition, user_id=user_id)
     compile_info = report["compile"]
     return {
         "valid": report["ok"],

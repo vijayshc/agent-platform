@@ -3,11 +3,10 @@ Admin database routes for Text2SQL application.
 Handles database querying and browsing functionality.
 """
 
-from flask import Blueprint, render_template, jsonify, request
-from src.utils.database import DatabaseManager, get_db_session, get_db_connection
+from flask import Blueprint, jsonify, request
+from src.utils.database import DatabaseManager, get_db_connection
 from src.auth.decorators import admin_required, module_required
 from sqlalchemy import text, inspect
-import sqlite3
 import pandas as pd
 import logging
 from config.config import DATABASE_URI

@@ -12,6 +12,8 @@ long-lived server picks up model changes without a restart.
 from __future__ import annotations
 
 import contextlib
+import datetime as _dt
+import decimal
 import logging
 import os
 import sys
@@ -31,6 +33,39 @@ for _name in ("dbt", "metricflow", "metricflow_semantics"):
 
 class MetricFlowError(RuntimeError):
     """MetricFlow could not build, resolve or execute the request."""
+
+
+#: MetricFlow reports each result column's own Python type in
+#: ``result_df.column_descriptions``. The platform's typed-table contract has its
+#: own vocabulary, so this is the single translation between the two: a metric
+#: column reaches a chart as a measure and a time dimension as a time axis, with
+#: nobody guessing either from the values. Order matters — ``bool`` subclasses
+#: ``int`` and ``datetime`` subclasses ``date``, so each is tested first.
+_CONTRACT_TYPES: tuple[tuple[type, str], ...] = (
+    (bool, "boolean"),
+    (int, "integer"),
+    (float, "number"),
+    (decimal.Decimal, "decimal"),
+    (_dt.datetime, "datetime"),
+    (_dt.date, "date"),
+    (_dt.time, "time"),
+    (str, "string"),
+)
+
+
+def contract_type(column_type: Any) -> str:
+    """The typed-table contract type for a MetricFlow column type.
+
+    ``unknown`` is not a guess. It is what MetricFlow itself reports for a column
+    whose values are all null (``NoneType``), and the neutral declaration for a
+    type outside its closed set: the type derived from the values then stands.
+    """
+    if column_type is type(None):
+        return "unknown"
+    for python_type, name in _CONTRACT_TYPES:
+        if isinstance(column_type, type) and issubclass(column_type, python_type):
+            return name
+    return "unknown"
 
 
 @dataclass
@@ -218,7 +253,14 @@ class MetricFlowClient:
         order: list[str] | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Run a metric query and return its rows (plus the single value, if any)."""
+        """Run a metric query and return its rows, types and single value.
+
+        ``column_types`` is MetricFlow's own declaration for each output column,
+        taken from the engine's result table — the type of the values the engine
+        returned, not a guess from their text. It travels with the rows so a
+        consumer (the MCP tool) can label each column as a measure, a time axis or
+        a label.
+        """
         from metricflow.engine.metricflow_engine import MetricFlowQueryRequest
 
         request = MetricFlowQueryRequest.create(
@@ -237,6 +279,10 @@ class MetricFlowClient:
 
         table = result.result_df
         columns = list(table.column_names)
+        column_types = {
+            column.column_name: contract_type(column.column_type)
+            for column in table.column_descriptions
+        }
         rows = [
             {name: table.get_cell_value(row, index) for index, name in enumerate(columns)}
             for row in range(table.row_count)
@@ -251,6 +297,7 @@ class MetricFlowClient:
             "start_time": start_time,
             "end_time": end_time,
             "columns": columns,
+            "column_types": column_types,
             "rows": rows,
             "row_count": len(rows),
             "value": value,

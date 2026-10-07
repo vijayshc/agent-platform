@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Download,
   Eye,
+  History,
   LayoutGrid,
   Maximize2,
   MoreHorizontal,
@@ -75,6 +76,7 @@ export interface StudioToolbarProps {
   onExport: () => void;
   onImport: (file: File) => void;
   onAccess: () => void;
+  onHistory: () => void;
 }
 
 export function StudioToolbar(props: StudioToolbarProps) {
@@ -102,6 +104,7 @@ export function StudioToolbar(props: StudioToolbarProps) {
     onExport,
     onImport,
     onAccess,
+    onHistory,
   } = props;
   const [moreOpen, setMoreOpen] = useState(false);
   const [theme, setTheme] = useState<string>(() => currentThemeName());
@@ -200,7 +203,17 @@ export function StudioToolbar(props: StudioToolbarProps) {
           <Upload size={14} /> Publish
         </button>
         <button type="button" className="as-btn" onClick={onTest} disabled={missing} data-testid="studio-testrun">
-          <Play size={14} /> Test run
+          <Play size={14} /> Test in chat
+        </button>
+        <button
+          type="button"
+          className="as-btn"
+          onClick={onHistory}
+          disabled={missing || !current}
+          title={current ? `Version history for ${current.name}` : "Save first to track versions"}
+          data-testid="studio-history"
+        >
+          <History size={14} /> History
         </button>
         <div className="as-overflow">
           <button

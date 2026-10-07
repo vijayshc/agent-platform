@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, session
 
-from src.agent_platform import db
 from src.agent_platform.api.api_helpers import (
     agent_access_allowed,
     attach_user_names,
@@ -52,7 +51,8 @@ def list_agents():
         # description/pattern/author resolve for every row (one name query).
         rows = attach_user_names(resource_access.filter_visible("agent", DefinitionStore.list_all(), uid))
         return jsonify({"agents": [full_definition(r) for r in rows]})
-    rows = resource_access.filter_visible("agent", DefinitionStore.list_published(), uid)
+    # Author names resolve in one query for the whole list (never N+1).
+    rows = attach_user_names(resource_access.filter_visible("agent", DefinitionStore.list_published(), uid))
     return jsonify({"agents": [public_definition(r) for r in rows]})
 
 
@@ -136,7 +136,7 @@ def update_agent(agent_id: str):
         denied_pub = reject_invalid_definition({"slug": slug, "name": name, "kind": kind, "config": config})
         if denied_pub:
             return denied_pub
-    bump = not bool(data.get("autosave"))
+    bump = False
     saved = DefinitionStore.save(
         definition_id=int(row["id"]),
         slug=slug,
@@ -184,8 +184,92 @@ def publish_agent(agent_id: str):
         denied_pub = reject_invalid_definition(row)
         if denied_pub:
             return denied_pub
-    saved = DefinitionStore.set_published(int(row["id"]), published)
+    saved = DefinitionStore.publish(int(row["id"]), published, actor=current_user_id())
     return jsonify(full_definition(saved))
+
+
+@catalog_bp.get("/agents/<agent_id>/versions")
+@api_auth_required("agents:read")
+def list_agent_versions(agent_id: str):
+    denied = require_studio()
+    if denied:
+        return denied
+    row = DefinitionStore.resolve(agent_id)
+    if row is None:
+        return jsonify({"error": "agent not found"}), 404
+    if not agent_access_allowed(row):
+        return jsonify({"error": "agent not found"}), 404
+    return jsonify({"versions": DefinitionStore.list_versions(int(row["id"]))})
+
+
+@catalog_bp.get("/agents/<agent_id>/versions/<int:ver>")
+@api_auth_required("agents:read")
+def get_agent_version(agent_id: str, ver: int):
+    denied = require_studio()
+    if denied:
+        return denied
+    row = DefinitionStore.resolve(agent_id)
+    if row is None:
+        return jsonify({"error": "agent not found"}), 404
+    if not agent_access_allowed(row):
+        return jsonify({"error": "agent not found"}), 404
+    snap = DefinitionStore.get_version(int(row["id"]), int(ver))
+    if snap is None:
+        return jsonify({"error": "version not found"}), 404
+    return jsonify(snap)
+
+
+@catalog_bp.post("/agents/<agent_id>/rollback")
+@api_auth_required("agents:write")
+def rollback_agent(agent_id: str):
+    denied = require_studio()
+    if denied:
+        return denied
+    row = DefinitionStore.resolve(agent_id)
+    if row is None:
+        return jsonify({"error": "agent not found"}), 404
+    if not agent_access_allowed(row):
+        return jsonify({"error": "forbidden", "message": "You do not have access to this agent"}), 403
+    data = request.get_json(silent=True) or {}
+    ver = data.get("version")
+    try:
+        ver = int(ver)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return jsonify({"error": "version is required"}), 400
+    restored = DefinitionStore.rollback(int(row["id"]), ver, actor=current_user_id())
+    if restored is None:
+        return jsonify({"error": "version not found"}), 404
+    return jsonify(full_definition(restored))
+
+
+@catalog_bp.post("/agents/<agent_id>/clone")
+@api_auth_required("agents:write")
+def clone_agent(agent_id: str):
+    denied = require_studio()
+    if denied:
+        return denied
+    row = DefinitionStore.resolve(agent_id)
+    if row is None:
+        return jsonify({"error": "agent not found"}), 404
+    if not agent_access_allowed(row):
+        return jsonify({"error": "agent not found"}), 404
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or f"{row.get('name')} copy").strip() or f"{row.get('name')} copy"
+    slug = unique_slug((data.get("slug") or name).strip() or name)
+    kind = (row.get("kind") or "agent").lower()
+    config = dict(row.get("config") or {})
+    config["kind"] = kind
+    cloned = DefinitionStore.save(
+        slug=slug,
+        name=name,
+        kind=kind,
+        config=config,
+        published=False,
+        created_by=current_user_id(),
+        updated_by=current_user_id(),
+        bump_version=False,
+    )
+    return jsonify(full_definition(cloned)), 201
 
 
 @catalog_bp.post("/agents/<agent_id>/validate")
@@ -210,7 +294,7 @@ def validate_agent(agent_id: str):
     }
     if row is None and not data.get("config"):
         return jsonify({"error": "agent not found"}), 404
-    return jsonify(validate_definition_report(definition))
+    return jsonify(validate_definition_report(definition, user_id=current_user_id()))
 
 
 @catalog_bp.post("/agents/validate")
@@ -228,7 +312,8 @@ def validate_draft():
                 "name": data.get("name"),
                 "kind": data.get("kind") or (data.get("config") or {}).get("kind") or "agent",
                 "config": data.get("config") or {},
-            }
+            },
+            user_id=current_user_id(),
         )
     )
 
@@ -379,38 +464,16 @@ def delete_api_key(key_id: int):
     return jsonify({"success": True})
 
 
+from src.agent_platform.api.studio_service import (
+    fetch_mcp_server_tools,
+    fetch_studio_resources,
+    fetch_studio_roles,
+    resolve_agent_for_management,
+)
+
+
 def _studio_resources() -> dict:
-    from src.models.mcp_server import MCPServer
-    from src.agent_platform.catalog.skill_packages import list_packages, visible_skill_names
-    from src.agent_platform.plugins.tools.builtins import list_function_tools
-
-    register_builtin_plugins()
-    registry = get_registry()
-    uid = current_user_id()
-
-    # Same create-if-missing contract as the LLM registry (``ensure()`` in
-    # ``llm_connection_manager``): this endpoint must answer on a database whose
-    # MCP table has not been materialised yet instead of 500ing on a read.
-    MCPServer.create_table()
-    servers = [
-        {"id": s.id, "name": s.name, "server_type": s.server_type}
-        for s in MCPServer.get_visible(uid)
-    ]
-
-    from src.agent_platform.runtime.model_select import studio_model_clients
-
-    skills = list_packages()
-    allowed_skills = visible_skill_names(uid)
-    if allowed_skills is not None:
-        skills = [pkg for pkg in skills if str(pkg.get("name")) in allowed_skills]
-
-    return {
-        "mcp_servers": servers,
-        "skills": skills,
-        "function_tools": list_function_tools(),
-        "model_clients": studio_model_clients(uid),
-        "plugins": registry.inspector_catalog(),
-    }
+    return fetch_studio_resources(current_user_id())
 
 
 @catalog_bp.get("/models")
@@ -433,25 +496,14 @@ def studio_resources():
 @catalog_bp.get("/studio/mcp-servers/<int:server_id>/tools")
 @api_auth_required("agents:read")
 def studio_mcp_server_tools(server_id: int):
-    """Live list_tools for a single MCP server (studio inspector).
-
-    Returns the same shape as ``serialize_mcp_server`` so the inspector can
-    render the tool list, details and any discovery error.
-    """
+    """Live list_tools for a single MCP server (studio inspector)."""
     denied = require_studio()
     if denied:
         return denied
-    from src.models.mcp_server import MCPServer, can_access_server
-    from src.agent_platform.catalog.mcp_discovery import serialize_mcp_server
-
-    # A server the caller may not use is indistinguishable from a missing one:
-    # answering 404 keeps another tenant's server ids unenumerable.
-    if not can_access_server(server_id, current_user_id()):
-        return jsonify({"error": "server not found"}), 404
-    server = MCPServer.get_by_id(server_id)
-    if not server:
-        return jsonify({"error": "server not found"}), 404
-    return jsonify(serialize_mcp_server(server, use_cache=False))
+    data, code = fetch_mcp_server_tools(server_id, current_user_id())
+    if data is None:
+        return jsonify({"error": "server not found"}), code
+    return jsonify(data)
 
 
 @catalog_bp.get("/studio/roles")
@@ -460,54 +512,14 @@ def studio_roles():
     denied = require_studio()
     if denied:
         return denied
-    conn = db.get_db_connection()
-    try:
-        has_roles = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='roles'"
-        ).fetchone()
-        if not has_roles:
-            return jsonify({"roles": []})
-        rows = conn.execute(
-            """
-            SELECT r.id, r.name, r.description, COUNT(ur.user_id) AS user_count
-            FROM roles r
-            LEFT JOIN user_roles ur ON ur.role_id = r.id
-            GROUP BY r.id
-            ORDER BY r.name, r.id
-            """
-        ).fetchall()
-    finally:
-        conn.close()
-    return jsonify({
-        "roles": [
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "description": r["description"],
-                "user_count": r["user_count"],
-            }
-            for r in rows
-        ]
-    })
+    return jsonify({"roles": fetch_studio_roles()})
 
 
 def _agent_owner_or_admin(agent_id: str):
-    """Resolve an agent for the legacy access endpoints (owner/admin only).
-
-    Mirrors the generic ``/api/v1/access/<type>/<id>`` rule: an existing agent
-    is a 403 for anyone but its owner or an administrator; a missing one is 404.
-    """
-    row = DefinitionStore.resolve(agent_id, published_only=False)
-    if row is None:
-        return None, (jsonify({"error": "agent not found"}), 404)
-    if not can_manage_agent(row):
-        return None, (
-            jsonify({
-                "error": "forbidden",
-                "message": "Only an administrator or the agent owner can manage access",
-            }),
-            403,
-        )
+    """Resolve an agent for the legacy access endpoints (owner/admin only)."""
+    row, err, code = resolve_agent_for_management(agent_id)
+    if err:
+        return None, (jsonify(err), code)
     return row, None
 
 

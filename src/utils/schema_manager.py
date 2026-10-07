@@ -1,7 +1,7 @@
 import json
 import os
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 
 class SchemaManager:
     """Manager class for handling database schema from a JSON file"""

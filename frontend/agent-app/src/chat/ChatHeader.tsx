@@ -7,7 +7,6 @@ export function ChatHeader({
   onToggleSidebar,
   agent,
   model,
-  streaming,
   onOpenSpotlight,
   onOpenModels,
   onOpenSettings,
@@ -20,7 +19,6 @@ export function ChatHeader({
   onToggleSidebar: () => void;
   agent: AgentDef | null;
   model: LlmModel | null;
-  streaming: boolean;
   onOpenSpotlight: () => void;
   onOpenModels: () => void;
   onOpenSettings: () => void;
@@ -57,6 +55,11 @@ export function ChatHeader({
               <span className="aa-avatar aa-avatar-sm">{agent.name.slice(0, 1).toUpperCase()}</span>
               {agent.name}
               <span className="aa-badge">{agent.kind === "workflow" ? "Team" : "Agent"}</span>
+              {agent.published === false ? (
+                <span className="aa-badge" data-testid="draft-badge" title="This agent is unpublished — you are previewing its draft">
+                  Draft preview
+                </span>
+              ) : null}
             </span>
           ) : (
             <span className="aa-header-agent-empty">Select an agent</span>
@@ -79,11 +82,6 @@ export function ChatHeader({
             </span>
           )}
         </button>
-        {streaming && (
-          <span className="aa-status running" data-testid="streaming-status">
-            streaming
-          </span>
-        )}
       </div>
       <div className="aa-header-right">
         <button

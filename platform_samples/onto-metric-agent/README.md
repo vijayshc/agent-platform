@@ -95,27 +95,30 @@ The five tools are served over **streamable HTTP** by
 platform's generic runner hosts it at a URL:
 
 ```bash
-TOKEN=$(~/anaconda3/bin/python3 -c 'import secrets; print(secrets.token_urlsafe(24))')
 cd <repo root>
 PYTHONPATH="$PWD:$PWD/platform_samples/onto-metric-agent" \
   platform_samples/onto-metric-agent/.venv/bin/python scripts/mcp_http_service.py \
-  --module bank_agent.metricflow_http --host 127.0.0.1 --port 8766 --token "$TOKEN"
+  --module bank_agent.metricflow_http --host 127.0.0.1 --port 8766
 ```
 
 It runs on the **module venv**, because `dbt-metricflow` / `dbt-duckdb` live there
-and not in the shared platform interpreter. `scripts/mcp_http_service.py
---autostart` launches each row's service with the interpreter that runs *it* (the
-platform's), so this row declares no `service` block and is started with the
-command above.
+and not in the shared platform interpreter. That is why the catalog row's
+`service` block names the venv interpreter and the sample's import root, so
+`scripts/mcp_http_service.py --autostart` (and the app at boot) starts it without
+anyone typing the command.
+
+No token is passed or stored: every request carries the app access token the
+platform minted for the user whose run made the call, and the runner's gate
+(`src.mcp_server_auth`) verifies it before the MCP application sees the request.
 
 Register it in **Admin → MCP Servers** as an HTTP server:
 
 | Field | Value |
 |---|---|
 | URL | `http://127.0.0.1:8766/mcp` |
-| Header | `Authorization: Bearer <token>` |
 
-The server's own tools are the contract; the catalog row only points at the URL.
+The server's own tools are the contract; the catalog row only points at the URL
+and names the module to serve.
 
 ## Run as a stdio MCP server
 
@@ -132,14 +135,19 @@ PYTHONPATH=platform_samples/onto-metric-agent \
 | Tool | Result |
 |---|---|
 | `list_metrics`, `describe_metric`, `list_dimension_values` | JSON |
-| `query_metric` | a markdown table, so a host can cache and chart it |
+| `query_metric` | a typed table: markdown text beside the `tool_data_table` contract (columns, MetricFlow-declared types, native rows) in the structured content, so a host can cache and chart it |
 | `explain_metric` | the generated SQL as text |
 
 ## Verify
 
-`Admin → MCP Servers → Test tools` lists the tools live. Quick checks over HTTP:
+`Admin → MCP Servers → Test tools` lists the tools live. Quick check over HTTP
+with the token the app mints for a run (a tokenless request is refused `401`):
 
 ```bash
+TOKEN=$(~/anaconda3/bin/python3 -c "
+import sys; sys.path.insert(0, '.')
+from src.auth.access_tokens import issue_access_token
+print(issue_access_token(1, username='admin'))")
 curl -s -X POST http://127.0.0.1:8766/mcp \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \

@@ -24,39 +24,14 @@ def definition_uses_scripted_client(definition: dict[str, Any] | None) -> bool:
     config = definition.get("config") if isinstance(definition.get("config"), dict) else definition
     if not isinstance(config, dict):
         return False
-    for spec in _iter_model_specs(config):
+    for spec in iter_model_specs(config):
         client = spec.get("client") or spec.get("modelClient")
         if str(client or "").strip().lower() == _SCRIPTED_CLIENT:
             return True
     return False
 
 
-def _iter_model_specs(config: dict[str, Any]) -> list[dict[str, Any]]:
-    specs: list[dict[str, Any]] = []
-
-    def take(obj: Any) -> None:
-        if not isinstance(obj, dict):
-            return
-        model = obj.get("model")
-        if isinstance(model, dict):
-            specs.append(model)
-        elif obj.get("client") or obj.get("modelClient"):
-            specs.append(obj)
-
-    take(config)
-    for key in ("manager", "aggregator", "manager_agent"):
-        take(config.get(key))
-    for spec in list(config.get("participants") or []) + list(config.get("nodes") or []):
-        take(spec)
-    studio = config.get("studio") or {}
-    if isinstance(studio, dict):
-        for node in studio.get("nodes") or []:
-            if not isinstance(node, dict):
-                continue
-            data = node.get("data") or {}
-            if isinstance(data, dict):
-                take(data)
-    return specs
+from src.agent_platform.catalog.traversal import iter_agent_configs, iter_model_specs
 
 
 def validate_definition(definition: dict[str, Any]) -> dict[str, Any]:
@@ -112,7 +87,7 @@ def _validate_model_connections(config: dict[str, Any], errors: list[dict[str, s
     from src.utils.llm_connection_manager import DEFAULT_IDENTIFIERS, resolve
 
     checked: set[str] = set()
-    for spec in _iter_model_specs(config):
+    for spec in iter_model_specs(config):
         client = str(spec.get("client") or spec.get("modelClient") or "").strip()
         if not client or client.lower() in DEFAULT_IDENTIFIERS or client.lower() == _SCRIPTED_CLIENT:
             continue
@@ -139,19 +114,6 @@ _MODES = {"plan", "execute"}
 _HISTORY_PROVIDERS = {"in_memory", "file"}
 
 
-def _agent_configs(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """The config and every agent-shaped config nested inside it."""
-    holders = [config]
-    for key in ("manager", "aggregator", "manager_agent"):
-        value = config.get(key)
-        if isinstance(value, dict):
-            holders.append(value)
-    for spec in list(config.get("participants") or []) + list(config.get("nodes") or []):
-        if isinstance(spec, dict):
-            holders.append(spec)
-    return holders
-
-
 def _validate_default_options(
     config: dict[str, Any], errors: list[dict[str, str]], default_name: str = "agent"
 ) -> None:
@@ -159,15 +121,28 @@ def _validate_default_options(
 
     A connection's Model Parameters already refuse ``model``/``messages``/
     ``stream``/``extra_body``; an agent's ``default_options`` are merged into the
-    same request body, so they are held to the same contract.
+    same request body, so they are held to the same contract. Output token caps
+    are refused outright: the LLM Manager connection owns the output budget, and
+    an agent-level cap would silently override it and truncate runs.
     """
     from src.utils.llm_connection_manager import RESERVED_BODY_KEYS
 
-    for holder in _agent_configs(config):
+    for holder in iter_agent_configs(config):
+        name = str(holder.get("name") or holder.get("id") or default_name)
+        if "max_output_tokens" in holder:
+            errors.append(
+                {
+                    "code": "agent_max_output_tokens_not_allowed",
+                    "message": (
+                        f"max_output_tokens on '{name}' is not an agent setting — "
+                        "configure the output cap on the LLM Manager connection's "
+                        "Model Parameters."
+                    ),
+                }
+            )
         options = holder.get("default_options")
         if not isinstance(options, dict):
             continue
-        name = str(holder.get("name") or holder.get("id") or default_name)
         reserved = sorted(RESERVED_BODY_KEYS.intersection(options))
         if reserved:
             errors.append(
@@ -180,16 +155,15 @@ def _validate_default_options(
                     ),
                 }
             )
-        max_tokens = options.get("max_tokens")
-        if max_tokens is not None and (
-            not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens <= 0
-        ):
-            # A non-positive cap is forwarded verbatim, so the provider would
-            # reject every call for this agent; refuse it at authoring time.
+        if "max_tokens" in options:
             errors.append(
                 {
-                    "code": "bad_default_options",
-                    "message": f"default_options for '{name}' must use a positive integer max_tokens.",
+                    "code": "agent_max_tokens_not_allowed",
+                    "message": (
+                        f"default_options for '{name}' cannot set max_tokens — the "
+                        "output cap is configured on the LLM Manager connection's "
+                        "Model Parameters."
+                    ),
                 }
             )
 
@@ -199,9 +173,7 @@ def _validate_harness_options(config: dict[str, Any], errors: list[dict[str, str
     runtime = str(config.get("runtime") or "agent").lower()
     # The studio writes camelCase ("Context window") and the runtime prefers it;
     # the snake_case API spelling is accepted too. Every spelling that is
-    # present must be a valid bound, and the output cap is compared against the
-    # one the runtime actually applies (camelCase first, matching
-    # ``harness_config.context_window_tokens``).
+    # present must be a valid bound.
     context_keys = [
         key
         for key in ("maxContextWindowTokens", "max_context_window_tokens")
@@ -216,30 +188,6 @@ def _validate_harness_options(config: dict[str, Any], errors: list[dict[str, str
                     "message": f"{key} must be a positive integer.",
                 }
             )
-    effective_context_key = context_keys[0] if context_keys else "maxContextWindowTokens"
-    max_context = config.get(effective_context_key)
-    max_output = config.get("max_output_tokens")
-    if max_output is not None:
-        if not isinstance(max_output, int) or isinstance(max_output, bool) or max_output <= 0:
-            errors.append(
-                {
-                    "code": "bad_max_output_tokens",
-                    "message": "max_output_tokens must be a positive integer.",
-                }
-            )
-    if (
-        isinstance(max_context, int)
-        and not isinstance(max_context, bool)
-        and isinstance(max_output, int)
-        and not isinstance(max_output, bool)
-        and 0 < max_context <= max_output
-    ):
-        errors.append(
-            {
-                "code": "bad_token_limits",
-                "message": f"max_output_tokens must be less than {effective_context_key}.",
-            }
-        )
 
     for key, allowed, label in (
         ("compaction_strategy", _COMPACTION_STRATEGIES, "compaction_strategy"),

@@ -184,7 +184,8 @@ METRICFLOW_TOOLS: list[dict] = [
             "`where` is a list of MetricFlow filter expressions of the form "
             "\"{{ Dimension('<name>') }} <operator> <value>\" or \"{{ Entity('<name>') }} IN (<values>)\". "
             "`start_time`/`end_time` bound a time dimension (inclusive, YYYY-MM-DD). Returns `rows`, "
-            "and `value` when the result is a single number."
+            "each column's MetricFlow-declared type in `column_types`, and `value` when the result is "
+            "a single number."
         ),
         "input_schema": {
             "type": "object",

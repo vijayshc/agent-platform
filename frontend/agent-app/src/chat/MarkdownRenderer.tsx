@@ -1,7 +1,5 @@
 import { memo } from "react";
-import { hasRichBlocks } from "./chartProtocol";
 import { MarkdownCore } from "./MarkdownCore";
-import { RichContent } from "./RichContent";
 
 interface MarkdownRendererProps {
   content: string;
@@ -13,11 +11,7 @@ interface MarkdownRendererProps {
   plain?: boolean;
 }
 
-/**
- * The chat's markdown entry point. Content that carries chart/table
- * placeholders is routed through :func:`RichContent`; everything else takes the
- * fast plain-markdown path.
- */
+/** The chat's markdown entry point. */
 export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   className = "",
@@ -25,8 +19,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   plain,
 }: MarkdownRendererProps) {
   if (!content) return null;
-  if (!plain && hasRichBlocks(content)) {
-    return <RichContent content={content} className={className} asFragment={asFragment} />;
-  }
-  return <MarkdownCore content={content} className={className} asFragment={asFragment} />;
+  return (
+    <MarkdownCore content={content} className={className} asFragment={asFragment} rich={!plain} />
+  );
 });

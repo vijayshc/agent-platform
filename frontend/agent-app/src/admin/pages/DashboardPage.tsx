@@ -171,7 +171,7 @@ function HBarChart({
       <BarChart data={data} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
         <CartesianGrid {...rule} />
         <XAxis type="number" {...tickCfg} tickFormatter={compact} />
-        <YAxis type="category" dataKey="name" {...tickCfg} width={130} tick={{ fill: p.text, fontSize: 11 }} />
+        <YAxis type="category" dataKey="name" {...tickCfg} width={130} tick={{ fill: p.text, fontSize: 12, fontWeight: 500 }} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: p.grid, opacity: 0.3 }} />
         <Bar dataKey="value" name="Count" fill={fill} radius={[4, 4, 4, 4]} barSize={16} />
       </BarChart>

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import Any
 
 from src.auth import resource_access
 from src.models.secrets import as_secret, mask_value, wrap_headers

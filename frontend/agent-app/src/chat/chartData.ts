@@ -32,10 +32,20 @@ export interface ChartModel {
   stacked: boolean;
   smooth: boolean;
   colorBy: "category" | "series" | "single";
+  showLegend: boolean;
   xLabel: string;
   yLabel: string;
   /** Every plotted value is a whole number, so the axis must not show fractions. */
   integerValues: boolean;
+  /** Series keys drawn against the right-hand axis (empty on a single axis). */
+  rightKeys: string[];
+  rightYLabel: string;
+  /** Per-axis whole-number flags, from the declared column types of the
+   *  measures on each side — never inferred from value patterns. */
+  leftIntegerValues: boolean;
+  rightIntegerValues: boolean;
+  /** Notes about how the rows were grouped, shown under the chart. */
+  diagnostics: string[];
   /** Human-readable reason the chart cannot be drawn, if any. */
   empty: string | null;
 }
@@ -73,14 +83,24 @@ export function niceDomain(values: number[]): [number, number] {
 /** Every value a chart plots. A stacked chart plots the row total, not the
  *  individual segments, so its axis has to be sized against the sums. */
 export function plottedValues(model: ChartModel): number[] {
+  return plottedValuesFor(model, model.valueKeys);
+}
+
+/** The plotted values of one side of a dual-axis chart, for its own domain. */
+export function plottedValuesFor(model: ChartModel, keys: string[]): number[] {
+  const pick = new Set(keys);
   const values: number[] = [];
   for (const row of model.data) {
     if (model.stacked) {
       let total = 0;
-      for (const key of model.valueKeys) total += asNumber(row[key]) ?? 0;
+      for (const key of model.valueKeys) {
+        if (!pick.has(key)) continue;
+        total += asNumber(row[key]) ?? 0;
+      }
       values.push(total);
     } else {
       for (const key of model.valueKeys) {
+        if (!pick.has(key)) continue;
         const value = asNumber(row[key]);
         if (value != null) values.push(value);
       }
@@ -128,10 +148,28 @@ function compareX(a: ToolDataValue | undefined, b: ToolDataValue | undefined, ty
 /** The chart types the renderer knows how to draw. The server validates the
  *  spec against the same set, so anything else is a contract violation and is
  *  reported rather than drawn as some other chart. */
-const KNOWN_TYPES: ChartType[] = ["line", "area", "bar", "hbar", "pie", "donut", "scatter"];
+const KNOWN_TYPES: ChartType[] = [
+  "line",
+  "area",
+  "bar",
+  "hbar",
+  "pie",
+  "donut",
+  "scatter",
+  "stackedBar",
+  "stackedArea",
+];
+/** The protocol's stacked shorthand maps to its base type plus `stacked`. */
+const STACKED_ALIASES: Partial<Record<ChartType, ChartType>> = {
+  stackedBar: "bar",
+  stackedArea: "area",
+};
 /** Aggregations the server can write. ``none`` is only ever written for a
  *  scatter, where no grouping happens. */
 const KNOWN_AGGREGATES: ChartSpec["aggregate"][] = ["sum", "avg", "count", "min", "max", "none"];
+/** Types where one measure colors each bar/slice rather than the series. */
+const CATEGORY_COLORED = new Set<ChartType>(["bar", "hbar", "pie", "donut"]);
+const PIE_TYPES = new Set<ChartType>(["pie", "donut"]);
 
 /** A decimal cell for plotting: parsed to a float, because a plot is inherently
  *  approximate. The table keeps the exact string. */
@@ -151,19 +189,36 @@ export function buildChartModel(
 ): ChartModel {
   const columns = data.columns ?? [];
   const byName = new Map(columns.map((column) => [column.name, column]));
+  // The model may name a single measure as a bare string; the protocol accepts
+  // both, so normalise it here rather than iterating its characters.
+  const yKeys = Array.isArray(spec.y) ? spec.y : typeof spec.y === "string" ? [spec.y] : [];
+  // The server used to write these defaults into the spec. The client owns them
+  // now, so a spec the model left implicit still renders as the protocol says.
+  const type: ChartType = STACKED_ALIASES[spec.type] ?? spec.type;
+  const stacked = Boolean(spec.stacked) || type !== spec.type;
+  const colorBy =
+    spec.colorBy ?? (yKeys.length === 1 && CATEGORY_COLORED.has(type) ? "category" : "series");
+  const showLegend =
+    spec.showLegend ?? (PIE_TYPES.has(type) || yKeys.length > 1 || Boolean(spec.series));
   const base: ChartModel = {
     data: [],
     xKey: spec.x,
     xType: byName.get(spec.x)?.type ?? "unknown",
     valueKeys: [],
     series: [],
-    type: spec.type,
-    stacked: Boolean(spec.stacked),
+    type,
+    stacked,
     smooth: spec.smooth !== false,
-    colorBy: spec.colorBy,
+    colorBy,
+    showLegend,
     xLabel: spec.xLabel || spec.x,
-    yLabel: spec.yLabel || (spec.y.length === 1 ? spec.y[0] : ""),
+    yLabel: spec.yLabel || (yKeys.length === 1 ? yKeys[0] : ""),
     integerValues: false,
+    rightKeys: [],
+    rightYLabel: "",
+    leftIntegerValues: false,
+    rightIntegerValues: false,
+    diagnostics: [],
     empty: null,
   };
   // A spec the server would not have produced is a contract violation. Drawing
@@ -172,13 +227,16 @@ export function buildChartModel(
   if (!KNOWN_TYPES.includes(spec.type)) {
     return { ...base, empty: `Unsupported chart type “${spec.type}”.` };
   }
-  if (!KNOWN_AGGREGATES.includes(spec.aggregate)) {
-    return { ...base, empty: `Unsupported aggregation “${spec.aggregate}”.` };
+  // A scatter plots one point per row and never aggregates, so its aggregation
+  // is `none` by definition — a spec that omits it is still a scatter.
+  const aggregate = type === "scatter" ? "none" : spec.aggregate;
+  if (!KNOWN_AGGREGATES.includes(aggregate)) {
+    return { ...base, empty: `Unsupported aggregation “${aggregate}”.` };
   }
-  if (spec.type !== "scatter" && spec.aggregate === "none") {
+  if (type !== "scatter" && aggregate === "none") {
     return { ...base, empty: "This chart asks for no aggregation on grouped data." };
   }
-  if (spec.type === "scatter" && spec.series) {
+  if (type === "scatter" && spec.series) {
     return { ...base, empty: "A scatter chart plots one point per row and cannot use a series." };
   }
   if (!columns.length || !data.rows.length) {
@@ -190,7 +248,7 @@ export function buildChartModel(
     return { ...base, empty: `The x column “${spec.x}” is not in this result.` };
   }
   const valueColumns: ToolDataColumn[] = [];
-  for (const name of spec.y) {
+  for (const name of yKeys) {
     const column = byName.get(name);
     if (!column) {
       return { ...base, empty: `The y column “${name}” is not in this result.` };
@@ -203,6 +261,23 @@ export function buildChartModel(
   }
 
   const valueKeys = valueColumns.map((column) => column.name);
+  // A second axis is an explicit, server-validated subset of y on a
+  // bar/line/area chart. Anything else arrives without one.
+  const rightSet = new Set(
+    (Array.isArray(spec.rightAxis) ? spec.rightAxis : []).filter((name) =>
+      valueKeys.includes(name),
+    ),
+  );
+  const dual =
+    (type === "bar" || type === "line" || type === "area") &&
+    !stacked &&
+    rightSet.size > 0 &&
+    rightSet.size < valueKeys.length;
+  // Series keys on the right axis. The pivot branch below adds its
+  // `series · measure` labels; plain measures match by column name.
+  const rightLabels = new Set<string>(
+    [...rightSet].filter((name) => valueKeys.includes(name)),
+  );
   const records: Array<Record<string, ToolDataValue>> = data.rows.map((row) => {
     const record: Record<string, ToolDataValue> = {};
     columns.forEach((column, index) => {
@@ -238,6 +313,7 @@ export function buildChartModel(
       for (const yKey of valueKeys) {
         const label = labelFor(seriesValue, yKey);
         if (!seriesValues.includes(label)) seriesValues.push(label);
+        if (dual && rightSet.has(yKey)) rightLabels.add(label);
         const value = asNumber(record[yKey]);
         if (value == null) continue;
         const bucket = entry.values.get(label) ?? [];
@@ -249,11 +325,11 @@ export function buildChartModel(
     chartData = [...byX.values()].map(({ row, values }) => {
       // Only series that actually have a value at this x are written: a missing
       // combination stays absent (a gap) instead of being invented as a zero.
-      for (const [label, bucket] of values) row[label] = aggregateValues(bucket, spec.aggregate);
+      for (const [label, bucket] of values) row[label] = aggregateValues(bucket, aggregate);
       return row;
     });
     keys = seriesValues;
-  } else if (spec.type === "scatter") {
+  } else if (type === "scatter") {
     // A scatter is one point per row: combining rows that share an x would erase
     // exactly the spread the chart exists to show.
     chartData = records.map((record) => {
@@ -293,7 +369,7 @@ export function buildChartModel(
     }
     chartData = [...byX.values()].map((entry) => {
       const out: Record<string, ToolDataValue> = { [xColumn.name]: entry.x };
-      for (const key of valueKeys) out[key] = aggregateValues(entry.values[key] ?? [], spec.aggregate);
+      for (const key of valueKeys) out[key] = aggregateValues(entry.values[key] ?? [], aggregate);
       return out;
     });
   }
@@ -317,7 +393,7 @@ export function buildChartModel(
   }
 
   if (
-    (spec.type === "pie" || spec.type === "donut") &&
+    (type === "pie" || type === "donut") &&
     !chartData.some((row) => (asNumber(row[primary]) ?? 0) !== 0)
   ) {
     return { ...base, valueKeys: keys, empty: "This result has no non-zero values to chart." };
@@ -329,6 +405,38 @@ export function buildChartModel(
     label: key,
     color: colors[index % colors.length],
   }));
+  const rightKeys = dual ? keys.filter((key) => rightLabels.has(key)) : [];
+  // Integer ticks come from the declared column types on each side — pivot
+  // labels are looked up by their measure column, not the label text.
+  const leftCols = dual ? valueColumns.filter((column) => !rightSet.has(column.name)) : valueColumns;
+  const leftIntegerValues = leftCols.every((column) => column.type === "integer");
+  const rightIntegerValues =
+    dual &&
+    valueColumns
+      .filter((column) => rightSet.has(column.name))
+      .every((column) => column.type === "integer");
+
+  // The server used to disclose grouping in the spec's diagnostics. Restore it
+  // here so the card still says when rows were combined.
+  const diagnostics: string[] = [];
+  if (type !== "scatter" && data.rows.length) {
+    const cellKey = (row: ToolDataValue[], at: number) => `${typeof row[at]}:${String(row[at] ?? "")}`;
+    const xIndex = columns.findIndex((column) => column.name === xColumn.name);
+    const seriesIndex = seriesColumn
+      ? columns.findIndex((column) => column.name === seriesColumn.name)
+      : -1;
+    const groups = new Set<string>();
+    for (const row of data.rows) {
+      groups.add(seriesIndex >= 0 ? `${cellKey(row, xIndex)}|${cellKey(row, seriesIndex)}` : cellKey(row, xIndex));
+    }
+    if (data.rows.length > groups.size) {
+      diagnostics.push(
+        seriesIndex >= 0
+          ? `${data.rows.length} rows grouped into ${groups.size} x/series points using ${aggregate}`
+          : `${data.rows.length} rows grouped into ${groups.size} categories using ${aggregate}`,
+      );
+    }
+  }
 
   return {
     data: chartData,
@@ -336,15 +444,59 @@ export function buildChartModel(
     xType: xColumn.type,
     valueKeys: keys,
     series,
-    type: spec.type,
-    stacked: Boolean(spec.stacked),
+    type,
+    stacked,
     smooth: spec.smooth !== false,
-    colorBy: spec.colorBy,
+    colorBy,
+    showLegend,
     xLabel: spec.xLabel || xColumn.name,
     yLabel: spec.yLabel || (keys.length === 1 ? keys[0] : ""),
     integerValues: valueColumns.every((column) => column.type === "integer"),
+    rightKeys,
+    rightYLabel: dual ? spec.rightYLabel || "" : "",
+    leftIntegerValues,
+    rightIntegerValues,
+    diagnostics,
     empty: null,
   };
+}
+
+/** Compact axis ticks: full precision belongs in tooltips, not on tick labels.
+ *  Large values shorten (`$50K`), small ones keep their exact reading. */
+export function axisFormatter(spec: ChartSpec): (value: number) => string {
+  const full = valueFormatter(spec);
+  const format = String(spec.valueFormat ?? "number").toLowerCase();
+  if (format === "percent") return full;
+  const compact = (value: number): string => {
+    const abs = Math.abs(value);
+    const short =
+      abs >= 1_000_000_000
+        ? `${(value / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`
+        : abs >= 1_000_000
+          ? `${(value / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
+          : abs >= 1_000
+            ? `${(value / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`
+            : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
+    if (format === "currency") {
+      const code = String(spec.currency || "USD").toUpperCase();
+      const symbol =
+        (() => {
+          try {
+            const parts = new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency: code,
+              currencyDisplay: "narrowSymbol",
+            }).formatToParts(0);
+            return parts.find((part) => part.type === "currency")?.value ?? code;
+          } catch {
+            return code;
+          }
+        })();
+      return `${symbol}${short}`;
+    }
+    return short;
+  };
+  return (value) => (Math.abs(value) >= 1000 ? compact(value) : full(value));
 }
 
 /** A value formatter driven by the spec's `valueFormat`/`currency`. */
@@ -364,6 +516,7 @@ export function valueFormatter(spec: ChartSpec): (value: number) => string {
       new Intl.NumberFormat(undefined, {
         style: "currency",
         currency,
+        currencyDisplay: "narrowSymbol",
         maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
       }).format(value);
   }

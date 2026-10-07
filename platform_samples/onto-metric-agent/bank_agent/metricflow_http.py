@@ -15,17 +15,26 @@ bind them like any other HTTP MCP server:
 There is no per-metric code: adding a metric or dimension to the dbt project
 makes it available here with no change to this file.
 
-``query_metric`` returns a **markdown table**, not JSON, because the platform's
-tool-data feature parses the first markdown table out of a tool result and caches
-it for ``#TABLE_``/``#CHART_`` rendering. The catalog tools stay JSON: they are
-read, never charted. ``explain_metric`` returns SQL text, so it is neither.
+``query_metric`` returns the platform's **typed-table contract**: the column
+names, each column's MetricFlow-declared type and the native rows travel as
+``structuredContent``, with a readable markdown table as the text. That is the
+same shape the Text-to-SQL server emits, so the host caches, charts and tables a
+metric result exactly as it does a SQL result. The catalog tools stay JSON: they
+are read, never charted. ``explain_metric`` returns SQL text, so it is neither.
+A failed query returns the contract's error envelope, so the tool's own message
+reaches the model instead of being reported as a producer bug.
 
 Run over HTTP (from the module venv, so dbt-metricflow is importable) — see the
 README "Run as an HTTP MCP server" section for the full command::
 
     PYTHONPATH="$PWD:$PWD/platform_samples/onto-metric-agent" \\
       platform_samples/onto-metric-agent/.venv/bin/python scripts/mcp_http_service.py \\
-      --module bank_agent.metricflow_http --host 127.0.0.1 --port 8766 --token "$TOKEN"
+      --module bank_agent.metricflow_http --host 127.0.0.1 --port 8766
+
+No credential is passed at launch, and none is stored on the row: the runner's
+gate (``src.mcp_server_auth``) verifies the app access token the platform mints
+for the user whose run made the call, so this endpoint is authenticated exactly
+like every other platform-served MCP server.
 """
 
 from __future__ import annotations
@@ -36,6 +45,15 @@ import threading
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import CallToolResult, TextContent
+
+from src.utils.tool_data_contract import (
+    ERROR_KIND,
+    ToolDataContractError,
+    apply_declared_types,
+    build_table,
+    render_markdown,
+)
 
 from .metricflow_tools import (
     describe_metric as _describe_metric,
@@ -76,12 +94,6 @@ def _as_list(value: Any) -> list[str]:
     return [str(item) for item in value]
 
 
-def _cell(value: Any) -> str:
-    if value is None:
-        return "NULL"
-    return str(value).replace("|", "\\|")
-
-
 def _constraint_lines(payload: dict[str, Any]) -> list[str]:
     """The query's constraints, one per line, without a pipe (tables follow)."""
     lines = [f"metric: {payload.get('metric')}"]
@@ -113,24 +125,42 @@ def _explain_header(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _render_query(payload: Any) -> str:
-    """A markdown table (the shape the platform's tool-data cache parses)."""
-    if not isinstance(payload, dict):
-        return str(payload)
-    if payload.get("error"):
-        return f"query_metric error: {payload['error']}"
+def _typed_table(payload: dict[str, Any]) -> Any:
+    """The platform's typed table for a query result.
+
+    MetricFlow declares each output column's type itself (through the client), so
+    the table carries that declaration instead of relying on the values alone.
+    ``apply_declared_types`` applies a declaration only where the values agree
+    with it; the values remain the truth about the result set.
+    """
     columns = [str(column) for column in payload.get("columns") or []]
-    rows = payload.get("rows") or []
+    rows = [[row.get(column) for column in columns] for row in payload.get("rows") or []]
+    table = build_table(columns, rows)
+    declared = {
+        str(name): str(column_type)
+        for name, column_type in (payload.get("column_types") or {}).items()
+    }
+    return apply_declared_types(table, declared)
+
+
+def _render_query(payload: dict[str, Any], table: Any) -> str:
+    """The readable markdown beside the typed table in the structured content."""
     header = _header(payload)
-    if not columns or not rows:
+    if not table.rows:
         return f"{header}\n\nNo rows returned."
-    lines = [
-        "| " + " | ".join(columns) + " |",
-        "| " + " | ".join(["---"] * len(columns)) + " |",
-    ]
-    for row in rows:
-        lines.append("| " + " | ".join(_cell(row.get(column)) for column in columns) + " |")
-    return f"{header}\n\n" + "\n".join(lines)
+    return f"{header}\n\n{render_markdown(table.columns, table.rows)}"
+
+
+def _error(message: str) -> CallToolResult:
+    """A failed query: readable text plus an explicit error envelope.
+
+    The envelope tells the host this is the tool's own failure rather than a
+    missing typed table, so the message reaches the model as written.
+    """
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)],
+        structuredContent={"kind": ERROR_KIND, "version": 1, "message": message},
+    )
 
 
 def _render_explain(payload: Any) -> str:
@@ -194,12 +224,14 @@ def query_metric(
     end_time: str = "",
     order: list[str] | None = None,
     limit: int = 0,
-) -> str:
+) -> CallToolResult:
     """Compute a metric with MetricFlow. `group_by` is a list of dimension or entity
     names. `where` is a list of MetricFlow filter expressions of the form
     "{{ Dimension('<name>') }} <operator> <value>" or "{{ Entity('<name>') }} IN (<values>)".
     `start_time`/`end_time` bound a time dimension (inclusive, YYYY-MM-DD). Returns the
-    rows as a markdown table, with `value` when the result is a single number."""
+    result as a typed table: each column (the group-by dimensions and the metric)
+    carries the type MetricFlow declares for it, so the rows can be shown or charted
+    directly. A single-number result also reports its `value`."""
     result = _query_metric(
         metric,
         group_by=_as_list(group_by),
@@ -209,7 +241,16 @@ def query_metric(
         order=_as_list(order),
         limit=int(limit) if limit else None,
     )
-    return _render_query(result)
+    if isinstance(result, dict) and result.get("error"):
+        return _error(f"query_metric error: {result['error']}")
+    try:
+        table = _typed_table(result)
+    except ToolDataContractError as exc:
+        return _error(f"Query Result Error: {exc}")
+    return CallToolResult(
+        content=[TextContent(type="text", text=_render_query(result, table))],
+        structuredContent=table.to_contract(),
+    )
 
 
 @mcp.tool()

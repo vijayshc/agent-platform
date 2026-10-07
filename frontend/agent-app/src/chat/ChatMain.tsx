@@ -123,7 +123,6 @@ export function ChatMain({
         onToggleSidebar={onToggleSidebar}
         agent={agent}
         model={model}
-        streaming={streaming}
         onOpenSpotlight={onOpenSpotlight}
         onOpenModels={onOpenModels}
         onOpenSettings={onOpenSettings}

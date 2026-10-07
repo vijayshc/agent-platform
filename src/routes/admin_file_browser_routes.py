@@ -9,7 +9,6 @@ from flask import (
     Blueprint,
     Response,
     jsonify,
-    render_template,
     request,
     send_file,
     session,

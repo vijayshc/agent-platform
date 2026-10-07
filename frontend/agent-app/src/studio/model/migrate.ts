@@ -155,6 +155,11 @@ function normalizeNodeData(raw: NodeData, catalog: StudioCatalog | null): NodeDa
   // new-node defaults, so loading + saving cannot change what runs.
   const data: NodeData = { ...loadedNodeData(catalog, paletteType), ...raw, paletteType };
   data.label = raw.label || data.label;
+  // Agent→model linking was removed: a saved `modelClient` pin is authoring
+  // residue. Normalise it here so loading an old definition no longer revives
+  // the pin (the next save then persists the unpinned shape).
+  data.modelClient = "default";
+  data.modelName = "";
   if (raw.runtime) data.runtime = LEGACY_RUNTIME[raw.runtime] ?? raw.runtime;
   if (paletteType === "deep_agent" || paletteType === "agent") data.runtime = paletteType;
   // Only deep agents carry this block; materialising an empty one on every other
@@ -182,14 +187,15 @@ function metaFromDefinition(
   config: DefinitionConfig,
   template: string,
 ): GraphMeta {
-  const model = asRecord(config.model);
+  // The flow-level model is always "follow the run": a legacy `config.model`
+  // pin is dropped on load so it cannot survive the next save.
   return {
     name: name || "Untitled",
     slug,
     description: String(config.description ?? ""),
     template,
-    modelClient: String(model.client ?? "default"),
-    modelName: String(model.name ?? ""),
+    modelClient: "default",
+    modelName: "",
   };
 }
 

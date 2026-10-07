@@ -20,7 +20,7 @@ from typing import Any
 
 from src.agent_platform.catalog.skill_packages import package_dir
 from src.agent_platform.catalog.skills_store import MafSkillStore
-from src.agent_platform.paths import user_skills_dir
+from src.agent_platform.paths import is_path_under, user_skills_dir
 
 # Text artifacts larger than this are listed but never loaded into an editor.
 # The write cap is the same value so a saved file is always re-openable.
@@ -32,68 +32,29 @@ MAX_ARTIFACTS = 5_000
 MAX_PATH_DEPTH = 12
 MAX_SEGMENT_LENGTH = 120
 
-_LANGUAGE_BY_EXT = {
-    ".py": "python",
-    ".pyi": "python",
-    ".js": "javascript",
-    ".mjs": "javascript",
-    ".cjs": "javascript",
-    ".jsx": "javascript",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".json": "json",
-    ".jsonc": "json",
-    ".yaml": "yaml",
-    ".yml": "yaml",
-    ".toml": "ini",
-    ".ini": "ini",
-    ".cfg": "ini",
-    ".md": "markdown",
-    ".markdown": "markdown",
-    ".mdx": "markdown",
-    ".txt": "plaintext",
+_LANGUAGE_BY_EXT: dict[str, str] = {
+    ".py": "python", ".pyi": "python",
+    ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript", ".jsx": "javascript",
+    ".ts": "typescript", ".tsx": "typescript",
+    ".json": "json", ".jsonc": "json",
+    ".yaml": "yaml", ".yml": "yaml",
+    ".toml": "ini", ".ini": "ini", ".cfg": "ini", ".env": "ini", ".editorconfig": "ini", ".cfg-dist": "ini",
+    ".md": "markdown", ".markdown": "markdown", ".mdx": "markdown",
+    ".txt": "plaintext", ".csv": "plaintext", ".log": "plaintext", ".gitignore": "plaintext",
     ".rst": "restructuredtext",
-    ".html": "html",
-    ".htm": "html",
-    ".xml": "xml",
-    ".xsd": "xml",
-    ".xsl": "xml",
-    ".svg": "xml",
-    ".css": "css",
-    ".scss": "scss",
-    ".less": "less",
-    ".sh": "shell",
-    ".bash": "shell",
-    ".zsh": "shell",
-    ".ps1": "powershell",
+    ".html": "html", ".htm": "html",
+    ".xml": "xml", ".xsd": "xml", ".xsl": "xml", ".svg": "xml",
+    ".css": "css", ".scss": "scss", ".less": "less",
+    ".sh": "shell", ".bash": "shell", ".zsh": "shell", ".ps1": "powershell",
     ".sql": "sql",
-    ".java": "java",
-    ".c": "c",
-    ".h": "c",
-    ".cpp": "cpp",
-    ".hpp": "cpp",
-    ".cs": "csharp",
-    ".go": "go",
-    ".rs": "rust",
-    ".rb": "ruby",
-    ".php": "php",
-    ".r": "r",
-    ".lua": "lua",
-    ".swift": "swift",
-    ".kt": "kotlin",
-    ".dockerfile": "dockerfile",
-    ".csv": "plaintext",
-    ".log": "plaintext",
-    ".env": "ini",
-    ".gitignore": "plaintext",
-    ".editorconfig": "ini",
-    ".cfg-dist": "ini",
-    ".bat": "bat",
-    ".cmd": "bat",
+    ".java": "java", ".c": "c", ".h": "c", ".cpp": "cpp", ".hpp": "cpp",
+    ".cs": "csharp", ".go": "go", ".rs": "rust", ".rb": "ruby", ".php": "php",
+    ".r": "r", ".lua": "lua", ".swift": "swift", ".kt": "kotlin",
+    ".dockerfile": "dockerfile", ".bat": "bat", ".cmd": "bat",
 }
 
 # Extensions we know are binary. Anything not listed is sniffed for NUL bytes.
-_BINARY_EXT = {
+_BINARY_EXT: set[str] = {
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".tiff",
     ".pdf", ".zip", ".gz", ".tar", ".tgz", ".bz2", ".xz", ".7z", ".rar",
     ".woff", ".woff2", ".ttf", ".otf", ".eot",
@@ -486,12 +447,8 @@ def _copy_tree(source: Path, target: Path) -> None:
     shutil.copytree(source, target)
 
 
-def _is_within(path: Path, root: Path) -> bool:
-    try:
-        path.resolve().relative_to(root.resolve())
-        return True
-    except ValueError:
-        return False
+# Backward compatibility alias
+_is_within = is_path_under
 
 
 def _looks_binary(path: Path) -> bool:

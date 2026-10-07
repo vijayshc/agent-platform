@@ -39,7 +39,18 @@ export interface ToolDataPayload {
   truncated: boolean;
 }
 
-export type ChartType = "line" | "area" | "bar" | "hbar" | "pie" | "donut" | "scatter";
+export type ChartType =
+  | "line"
+  | "area"
+  | "bar"
+  | "hbar"
+  | "pie"
+  | "donut"
+  | "scatter"
+  /** The protocol's shorthand for a stacked bar/area; the renderer maps it to
+   *  its base type with `stacked: true`. */
+  | "stackedBar"
+  | "stackedArea";
 
 export type Aggregate = "sum" | "avg" | "count" | "min" | "max" | "none";
 
@@ -64,10 +75,16 @@ export interface ChartSpec {
   subtitle?: string;
   xLabel?: string;
   yLabel?: string;
-  /** `half` pairs with the next half chart; default full width. */
-  layout: "full" | "half";
+  /** `half`/`third`/`quarter` share a row with neighbours; default full width. */
+  layout: BlockLayout;
   valueFormat: "number" | "compact" | "percent" | "currency";
   currency?: string;
+  /** y measures drawn against a right-hand axis with its own scale, for two
+   *  measures on incomparable scales (order counts vs basket dollars). A
+   *  strict non-empty subset of `y`; bar/line/area only, never stacked. */
+  rightAxis?: string[];
+  /** Axis label for the right-hand axis. */
+  rightYLabel?: string;
   colorBy: "category" | "series" | "single";
   height: number;
   colors?: string[];
@@ -85,7 +102,7 @@ export interface ChartSpec {
 export interface TableSpec {
   title?: string;
   pageLength?: number;
-  layout?: "full" | "half";
+  layout?: BlockLayout;
   /** Set when the spec could not be rendered; the card shows this instead. */
   error?: string;
 }
@@ -107,9 +124,115 @@ export interface RichTableSegment {
   spec: TableSpec;
 }
 
-export type RichSegment = RichMarkdownSegment | RichChartSegment | RichTableSegment;
-export type RichBlock = RichChartSegment | RichTableSegment;
+/** Narrow-block layout: full width, or shared rows of 2/3/4. */
+export type BlockLayout = "full" | "half" | "third" | "quarter";
 
-export function blockLayout(block: RichBlock): "full" | "half" {
-  return block.spec.layout === "half" ? "half" : "full";
+/** A KPI card spec as the server validated it. The value is computed from the
+ *  cached rows — the model never sends a literal number. */
+export interface CardSpec {
+  metric: string;
+  aggregate: Aggregate;
+  title?: string;
+  subtitle?: string;
+  hint?: string;
+  layout: BlockLayout;
+  valueFormat: "number" | "compact" | "percent" | "currency";
+  currency?: string;
+  deltaMetric?: string;
+  deltaAggregate?: Aggregate;
+  /** Kebab-case icon name from the server's allowlist (e.g. "trending-up"). */
+  icon?: string;
+  /** Optional hex accent chosen by the model for the rail/sparkline. */
+  color?: string;
+  spark?: { x: string; type?: "line" | "area" | "bar" };
+  diagnostics?: string[];
+  error?: string;
+}
+
+/** A leaderboard spec: top-N labels by one aggregated measure. */
+export interface ListSpec {
+  label: string;
+  value: string;
+  aggregate: Aggregate;
+  limit?: number;
+  title?: string;
+  subtitle?: string;
+  layout: BlockLayout;
+  valueFormat: "number" | "compact" | "percent" | "currency";
+  currency?: string;
+  color?: string;
+  /** How the ranked rows are drawn: proportional bars, plain rows, or share. */
+  variant?: "bars" | "plain" | "share";
+  showShare?: boolean;
+  diagnostics?: string[];
+  error?: string;
+}
+
+/** Progress of one measure toward a literal target. */
+export interface ProgressSpec {
+  metric: string;
+  aggregate: Aggregate;
+  target: number;
+  title?: string;
+  subtitle?: string;
+  layout: BlockLayout;
+  valueFormat: "number" | "compact" | "percent" | "currency";
+  currency?: string;
+  color?: string;
+  diagnostics?: string[];
+  error?: string;
+}
+
+/** A free-text dashboard box. Carries no data reference. */
+export interface NoteSpec {
+  style?: "title" | "insight" | "info" | "warning" | "success";
+  title?: string;
+  body?: string;
+  layout?: BlockLayout;
+  error?: string;
+}
+
+export interface RichCardSegment {
+  kind: "card";
+  callId: string;
+  spec: CardSpec;
+}
+
+export interface RichListSegment {
+  kind: "list";
+  callId: string;
+  spec: ListSpec;
+}
+
+export interface RichProgressSegment {
+  kind: "progress";
+  callId: string;
+  spec: ProgressSpec;
+}
+
+export interface RichNoteSegment {
+  kind: "note";
+  callId: string;
+  spec: NoteSpec;
+}
+
+export type RichSegment =
+  | RichMarkdownSegment
+  | RichChartSegment
+  | RichTableSegment
+  | RichCardSegment
+  | RichListSegment
+  | RichProgressSegment
+  | RichNoteSegment;
+export type RichBlock =
+  | RichChartSegment
+  | RichTableSegment
+  | RichCardSegment
+  | RichListSegment
+  | RichProgressSegment
+  | RichNoteSegment;
+
+export function blockLayout(block: RichBlock): BlockLayout {
+  const layout = (block.spec as { layout?: string }).layout;
+  return layout === "half" || layout === "third" || layout === "quarter" ? layout : "full";
 }

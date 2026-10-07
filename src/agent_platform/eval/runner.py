@@ -7,7 +7,6 @@ from typing import Any
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from src.agent_platform.eval.store import EvalStore
 from src.agent_platform.paths import run_workspace_dir
-from src.agent_platform.plugins import register_builtin_plugins
 from src.agent_platform.runtime.compiler import compile_definition
 from src.agent_platform.runtime.workspace import preload_sample_service
 

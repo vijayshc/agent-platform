@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import {
   Activity,
   Book,
-  ChevronDown,
   Cpu,
   Database,
   FolderOpen,
@@ -66,8 +65,6 @@ const THEMES = [
   { key: "lightColored", label: "Light Colored" },
 ];
 
-const LLM_ROUTE_STORAGE = "text2sql.llmRoutingMode";
-
 function readTheme(): string {
   try {
     return (
@@ -109,13 +106,6 @@ export function SettingsPanel({
   me: MeInfo | null;
 }) {
   const [theme, setTheme] = useState(readTheme());
-  const [llmMode, setLlmMode] = useState<string>(() => {
-    try {
-      return localStorage.getItem(LLM_ROUTE_STORAGE) || (me?.browser_llm_proxy_enabled_default ? "browser_proxy" : "backend");
-    } catch {
-      return me?.browser_llm_proxy_enabled_default ? "browser_proxy" : "backend";
-    }
-  });
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -143,22 +133,6 @@ export function SettingsPanel({
   const switchTheme = (key: string) => {
     setTheme(key);
     applyTheme(key);
-  };
-
-  const setLlm = (value: string) => {
-    setLlmMode(value);
-    try {
-      localStorage.setItem(LLM_ROUTE_STORAGE, value);
-    } catch {
-      /* ignore */
-    }
-    // Mirror the Flask #globalLlmRoutingSelect so server-side consumer code
-    // (knowledge/metadata/llm_engine) reads the same stored mode.
-    const flaskSelect = document.getElementById("globalLlmRoutingSelect") as HTMLSelectElement | null;
-    if (flaskSelect) {
-      flaskSelect.value = value;
-      flaskSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    }
   };
 
   return createPortal(
@@ -218,24 +192,6 @@ export function SettingsPanel({
                       <span className="aa-theme-tooltip">{t.label}</span>
                     </button>
                   ))}
-                </div>
-              </div>
-              <div className="aa-settings-field">
-                <label htmlFor="settings-llm-select">LLM Routing</label>
-                <div className="aa-llm-select-wrap">
-                  <Cpu size={15} />
-                  <select
-                    id="settings-llm-select"
-                    name="llm_routing"
-                    className="aa-settings-select"
-                    value={llmMode}
-                    data-testid="settings-llm-select"
-                    onChange={(e) => setLlm(e.target.value)}
-                  >
-                    <option value="backend">Backend API</option>
-                    <option value="browser_proxy">Local Browser Proxy</option>
-                  </select>
-                  <ChevronDown size={14} />
                 </div>
               </div>
             </div>

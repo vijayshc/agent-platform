@@ -41,13 +41,34 @@ from src.agent_platform.runtime.tool_data.prompt import (
     load_protocol_instructions,
     tool_data_protocol_note,
 )
+from src.agent_platform.runtime.tool_data.repair import (
+    DISCARD_DRAFT,
+    MAX_CHART_FIX_ATTEMPTS,
+    ChartRepairMiddleware,
+    best_splice,
+    dropped_blocks,
+    is_patch_reply,
+    merged_reply,
+    splice_blocks,
+)
 from src.agent_platform.runtime.tool_data.scope import (
     ToolDataScope,
     conversation_scope,
     scope_for,
     scope_from_namespace,
 )
-from src.agent_platform.runtime.tool_data.spec import normalize_reply, validate_chart, validate_table
+from src.agent_platform.runtime.tool_data.spec import (
+    Block,
+    chart_feedback,
+    extract_blocks,
+    validate_card,
+    validate_chart,
+    validate_list,
+    validate_note,
+    validate_progress,
+    validate_reply,
+    validate_table,
+)
 from src.agent_platform.runtime.tool_data.store import TOOL_DATA_STORE, ToolData, ToolDataStore
 from src.agent_platform.runtime.tool_data.table import (
     ERROR_KIND,
@@ -63,9 +84,14 @@ from src.agent_platform.runtime.tool_data.table import (
 )
 
 __all__ = [
+    "Block",
+    "DISCARD_DRAFT",
+    "best_splice",
     "ERROR_KIND",
+    "MAX_CHART_FIX_ATTEMPTS",
     "PROMPT_SKILL_NAME",
     "TOOL_DATA_STORE",
+    "ChartRepairMiddleware",
     "Column",
     "ToolData",
     "ToolDataArchive",
@@ -79,12 +105,16 @@ __all__ = [
     "apply_declared_types",
     "build_table",
     "build_tool_data_middleware",
+    "chart_feedback",
     "contract_kind",
     "conversation_scope",
     "descriptors_from_payloads",
+    "dropped_blocks",
     "ensure_prompt_skill",
+    "extract_blocks",
+    "is_patch_reply",
     "load_protocol_instructions",
-    "normalize_reply",
+    "merged_reply",
     "parse_contract",
     "payloads_from_descriptors",
     "policy_from_config",
@@ -95,7 +125,13 @@ __all__ = [
     "resolve_tool_data",
     "scope_for",
     "scope_from_namespace",
+    "splice_blocks",
     "tool_data_protocol_note",
+    "validate_card",
     "validate_chart",
+    "validate_list",
+    "validate_note",
+    "validate_progress",
+    "validate_reply",
     "validate_table",
 ]

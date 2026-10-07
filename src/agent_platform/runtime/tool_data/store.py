@@ -6,36 +6,23 @@ the model a short reference (``D1``, ``D2``, …); the full table is cached here
 ``#TABLE_D1`` / ``#CHART_D1`` can be rendered without calling the tool again.
 
 The cache has two tiers:
-
-* **memory** — an LRU of recently used tables, bounded by a row budget, so the
-  common case (render the result you just produced) never touches the disk;
-* **archive** — one Parquet file per table in the conversation's checkpoint
-  directory (see :mod:`archive`), so a reference stays valid for the whole
-  conversation and survives a restart.
-
-Both tiers are scoped by :class:`~...tool_data.scope.ToolDataScope`. References
-are handed out monotonically *per conversation*, never reused, so a table cached
-in turn 1 is still ``D1`` in turn 9 — which is what lets the model re-plot
-earlier data instead of re-running the query.
+* **memory** — an LRU of recently used tables, bounded by a row budget;
+* **archive** — one Parquet file per table in the conversation's checkpoint directory.
 """
 
 from __future__ import annotations
 
-import threading
-import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+import threading
+import time
+from typing import Any
 
 from src.agent_platform.runtime.tool_data.archive import ToolDataArchive
 from src.agent_platform.runtime.tool_data.scope import ToolDataScope
-from src.agent_platform.runtime.tool_data.table import Column, columns_from_payload
+from src.utils.tool_data_contract import Column, columns_from_payload
 
-#: How long an untouched conversation stays resident in memory. The archive is
-#: the durable tier, so dropping a bucket only costs a re-read.
 DEFAULT_TTL_SECONDS = 1800
-
-#: Rows kept across all tables of one conversation before the least recently
-#: used table is dropped from memory (it stays in the archive).
 DEFAULT_MEMORY_ROW_BUDGET = 200_000
 
 
@@ -60,7 +47,6 @@ class ToolData:
 
     @property
     def key(self) -> str:
-        """The identifier the client resolves against (the short ref)."""
         return self.ref or self.call_id
 
     def to_payload(self) -> dict:
@@ -124,7 +110,6 @@ class ToolDataStore:
         self._ttl = ttl_seconds
         self._budget = memory_row_budget
 
-    # ------------------------------------------------------------- internals
     def _archive_for(self, scope: ToolDataScope) -> ToolDataArchive | None:
         if not scope.persistent or scope.root is None:
             return None
@@ -151,18 +136,13 @@ class ToolDataStore:
             total_rows=int(payload.get("total_rows") or 0),
         )
 
-    # ---------------------------------------------------------------- public
     def put(
         self,
         scope: ToolDataScope | None,
         data: ToolData,
         run_id: int | None = None,
     ) -> ToolData:
-        """Cache a result, archive it, and give it its conversation reference.
-
-        Re-caching the same tool call (a resumed run re-processing a message)
-        keeps the original reference instead of consuming a new one.
-        """
+        """Cache a result, archive it, and give it its conversation reference."""
         if scope is None:
             return data
         with self._lock:
@@ -193,14 +173,7 @@ class ToolDataStore:
         return data
 
     def resolve(self, scope: ToolDataScope | None, token: str) -> ToolData | None:
-        """Resolve a reference to a cached result.
-
-        Exactly two forms resolve: the short reference the marker printed
-        (``D1``) and the provider's own ``tool_call_id``. Nothing else is
-        guessed at — a reference the model wrote wrong stays unresolved and the
-        chat says the data is gone, rather than drawing whatever happened to be
-        cached under a name that merely looked similar.
-        """
+        """Resolve a reference to a cached result."""
         if scope is None:
             return None
         text = str(token or "").strip()
@@ -248,12 +221,7 @@ class ToolDataStore:
         return resolved
 
     def clear(self, scope: ToolDataScope | None) -> None:
-        """Drop a conversation's cache: memory and archived files alike.
-
-        The archive is rebuilt from the scope when it is not resident, so a
-        conversation whose files were written by another process (or an earlier
-        boot) is still emptied.
-        """
+        """Drop a conversation's cache: memory and archived files alike."""
         if scope is None:
             return
         with self._lock:
@@ -276,5 +244,13 @@ class ToolDataStore:
             self._archives.pop(key, None)
 
 
-#: The process-wide cache every runtime reads and writes.
 TOOL_DATA_STORE = ToolDataStore()
+
+
+__all__ = [
+    "DEFAULT_TTL_SECONDS",
+    "DEFAULT_MEMORY_ROW_BUDGET",
+    "ToolData",
+    "ToolDataStore",
+    "TOOL_DATA_STORE",
+]

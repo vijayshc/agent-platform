@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from src.agent_platform import db
+from src.agent_platform.execution import run_schema
 
 
 def _now() -> str:
@@ -27,96 +27,18 @@ def _to_int(value: Any) -> int | None:
 
 
 class RunStore:
-    # One-time DDL guard. Creating tables / ALTER / CREATE INDEX on every store
-    # call was a large, lock-heavy cost in the hot path (every run status write,
-    # every span event, every message). After the first successful run per
-    # process we short-circuit so concurrent runs do not re-run DDL against a
-    # shared SQLite file.
-    _tables_ready = False
-    _ddl_lock = threading.Lock()
-
     @staticmethod
     def _reset_schema_guard() -> None:
         """Force DDL to run again.
 
         Test isolation swaps ``get_db_connection`` to a fresh file; the cached
-        ``_tables_ready`` must be cleared so the new file gets its schema.
+        guard must be cleared so the new file gets its schema.
         """
-        with RunStore._ddl_lock:
-            RunStore._tables_ready = False
+        run_schema.reset_schema_guard()
 
     @staticmethod
     def ensure_tables() -> None:
-        if RunStore._tables_ready:
-            return
-        with RunStore._ddl_lock:
-            if RunStore._tables_ready:
-                return
-            conn = db.get_db_connection()
-            try:
-                cur = conn.cursor()
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS agent_runs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        public_id TEXT UNIQUE,
-                        entity_type TEXT,
-                        entity_id INTEGER,
-                        definition_id INTEGER,
-                        conversation_id INTEGER,
-                        user_id INTEGER,
-                        agent_slug TEXT,
-                        task TEXT,
-                        status TEXT DEFAULT 'running',
-                        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        finished_at TIMESTAMP,
-                        final_reply TEXT,
-                        error TEXT,
-                        input_json TEXT,
-                        pending_json TEXT,
-                        workspace_dir TEXT,
-                        session_json TEXT,
-                        checkpoint_id TEXT,
-                        phoenix_project TEXT,
-                        session_id TEXT,
-                        trace_id TEXT,
-                        root_span_id TEXT
-                    )
-                    """
-                )
-                for col, decl in (
-                    ("public_id", "TEXT"),
-                    ("definition_id", "INTEGER"),
-                    ("conversation_id", "INTEGER"),
-                    ("user_id", "INTEGER"),
-                    ("agent_slug", "TEXT"),
-                    ("input_json", "TEXT"),
-                    ("pending_json", "TEXT"),
-                    ("workspace_dir", "TEXT"),
-                    ("session_json", "TEXT"),
-                    ("checkpoint_id", "TEXT"),
-                    # Phoenix correlation: which trace/session/root span this run
-                    # produced, and the Phoenix project (agent name) it landed in.
-                    # Persisted at run start / root-span creation so the run's
-                    # interactions can be re-fetched from Phoenix on demand long
-                    # after the in-memory replay buffer is gone.
-                    ("phoenix_project", "TEXT"),
-                    ("session_id", "TEXT"),
-                    ("trace_id", "TEXT"),
-                    ("root_span_id", "TEXT"),
-                ):
-                    try:
-                        cur.execute(f"ALTER TABLE agent_runs ADD COLUMN {col} {decl}")
-                    except Exception:
-                        pass
-                try:
-                    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_runs_public_id ON agent_runs(public_id)")
-                except Exception:
-                    pass
-                conn.commit()
-                RunStore._tables_ready = True
-            finally:
-                conn.close()
+        run_schema.ensure_run_tables()
 
     @classmethod
     def create(

@@ -17,8 +17,8 @@ from typing import Any
 TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens", "max_output_tokens"})
 
 _RAISE_HINT = (
-    "Raise Max output tokens for this agent (or the connection's Model "
-    "Parameters) and run again."
+    "Raise Max output tokens on the LLM Manager connection's Model Parameters "
+    "and run again."
 )
 
 
@@ -30,6 +30,24 @@ def _int_or_none(value: Any) -> int | None:
     return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def finish_reason_of(value: Any) -> str | None:
+    """The provider's finish reason, undoing streaming aggregation.
+
+    A chat model built with ``streaming=True`` answers ``ainvoke`` by streaming
+    internally and merging the chunk metadata, and ``AIMessageChunk`` merges
+    ``response_metadata`` by string concatenation: the provider's ``length``
+    arrives as ``"lengthlength"``. Collapsing the shortest repeated unit
+    recovers the provider's own word, so a truncated call is still recognised.
+    """
+    text = str(value or "").strip().lower()
+    if not text:
+        return None
+    for size in range(1, len(text) + 1):
+        if len(text) % size == 0 and text[:size] * (len(text) // size) == text:
+            return text[:size]
+    return text
+
+
 def truncated_message(
     *,
     content: str,
@@ -39,7 +57,7 @@ def truncated_message(
     model_name: str | None = None,
 ) -> str | None:
     """The error text for a truncated call, or ``None`` when it finished."""
-    if str(finish_reason or "").lower() not in TRUNCATED_FINISH_REASONS:
+    if finish_reason_of(finish_reason) not in TRUNCATED_FINISH_REASONS:
         return None
     output_tokens = _int_or_none((usage or {}).get("output_tokens"))
     reasoning_tokens = _int_or_none(((usage or {}).get("output_token_details") or {}).get("reasoning"))

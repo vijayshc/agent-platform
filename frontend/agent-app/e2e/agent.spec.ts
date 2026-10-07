@@ -168,7 +168,7 @@ test.describe("Agent Chat + Runs", () => {
     await page.locator('[data-testid="spotlight-item"][data-slug="slow-echo"]').click();
     await page.getByTestId("composer-input").fill("stream please");
     await page.getByTestId("send-button").click();
-    await expect(page.getByTestId("streaming-status")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Stop" })).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId("view-run")).toBeVisible({ timeout: 15000 });
 
     const runs = await context.newPage();

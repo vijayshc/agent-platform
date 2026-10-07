@@ -6,8 +6,6 @@ from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     BaseMessage,
-    HumanMessage,
-    SystemMessage,
     ToolMessage,
 )
 
@@ -21,6 +19,8 @@ SSE_TYPES = (
     "agent_switch",
     "tool_call",
     "tool_result",
+    "tool_data",
+    "chat",
     "approval_request",
     "skill_load",
     "error",
@@ -329,7 +329,6 @@ def _map_message(
 ) -> tuple[list[dict[str, Any]], str | None]:
     events: list[dict[str, Any]] = []
     if isinstance(msg, AIMessage) or isinstance(msg, AIMessageChunk):
-        content = getattr(msg, "content", "")
         complete = not isinstance(msg, AIMessageChunk)
         # A message the client already has is not replayed at all: not as text,
         # not as a tool call.
@@ -509,3 +508,17 @@ def register_default_path_aliases() -> None:
     register_path_alias(uploads_dir(), "<uploads>")
     register_path_alias(APP_ROOT, "<app>")
     register_path_alias(home, "~")
+
+
+async def thread_message_ids(graph: Any, config: dict[str, Any]) -> set[str]:
+    """Message ids the thread already holds, i.e. everything already delivered.
+
+    LangGraph's ``add_messages`` uses the id as a message's identity, so the same
+    id re-reported later is the same message, not a new one.
+    """
+    try:
+        state = await graph.aget_state(config)
+    except Exception:
+        return set()
+    messages = (getattr(state, "values", None) or {}).get("messages") or []
+    return {str(m.id) for m in messages if getattr(m, "id", None)}

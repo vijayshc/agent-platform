@@ -155,7 +155,7 @@ export function AdminShell({ children, shellClass }: { children: ReactNode; titl
             <span className="aa-rail-item-icon">
               <Bot size={16} />
             </span>
-            <span className="aa-rail-item-label">Back to Agent</span>
+            <span className="aa-rail-item-label">Home</span>
           </a>
         </div>
       </aside>

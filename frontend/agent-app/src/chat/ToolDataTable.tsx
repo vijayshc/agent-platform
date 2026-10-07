@@ -33,12 +33,26 @@ export function ToolDataTable({ data, spec }: { data: ToolDataPayload; spec: Tab
           // from how a value happens to look.
           columns: data.columns.map((column) => ({
             title: column.name,
+            // Uniform left alignment: without an explicit class DataTables
+            // right-aligns `num`/`date` columns (dt-type-numeric) and flips
+            // their sort icon to the other side via row-reverse.
+            className: "dt-left",
             type:
               column.type === "integer" || column.type === "number" || column.type === "decimal"
                 ? "num"
                 : column.type === "date" || column.type === "datetime"
                   ? "date"
                   : "string",
+            // A float summed in SQL arrives with binary artifacts
+            // (229.96999999999997). Show a readable value; the exact number
+            // stays in the sort/search data, and `decimal` cells are untouched.
+            render:
+              column.type === "number"
+                ? (value: unknown, renderType: string) =>
+                    renderType === "display" && typeof value === "number" && !Number.isInteger(value)
+                      ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value)
+                      : value
+                : undefined,
           })),
           autoWidth: false,
           deferRender: true,
@@ -73,16 +87,12 @@ export function ToolDataTable({ data, spec }: { data: ToolDataPayload; spec: Tab
   }, [data, pageLength]);
 
   return (
-    <figure className="td-card td-card-table" data-testid={`table-card-${data.call_id}`}>
-      <figcaption className="td-card-head">
+    <figure className="td-card td-card-table" data-layout={spec.layout || "full"} data-testid={`table-card-${data.call_id}`}>
+      <div className="td-table-head">
         <div className="td-card-titles">
-          <span className="td-card-title">{spec.title || `Table · ${data.tool_name}`}</span>
+          <span className="td-flat-title">{spec.title || `Table · ${data.tool_name}`}</span>
         </div>
-        <span className="td-card-meta" title="Rows in this result">
-          {data.total_rows.toLocaleString()} row{data.total_rows === 1 ? "" : "s"}
-          {data.truncated ? ` · showing ${data.returned_rows.toLocaleString()}` : ""}
-        </span>
-      </figcaption>
+      </div>
       <div className="td-table-wrap">
         <table ref={tableRef} className="td-table" />
       </div>

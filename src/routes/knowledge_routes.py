@@ -1,12 +1,16 @@
-from flask import Blueprint, request, jsonify, session, current_app, send_from_directory
+from flask import Blueprint, request, jsonify, current_app, send_from_directory
 import logging
 import os
-import tempfile
 import uuid
-from datetime import datetime
 from werkzeug.utils import secure_filename
 from src.utils.knowledge_manager import KnowledgeManager
 from src.utils import chunking, collection_access, knowledge_access, knowledge_ingest, tabular_ingest
+from src.utils.knowledge_upload_service import (
+    document_mimetype,
+    inspect_uploaded_file,
+    parse_allowed_roles_from_form,
+    parse_tags_from_form,
+)
 from src.auth.decorators import module_required, current_user_id_for_rbac
 from src.utils.auth_utils import login_required
 from src.utils.user_manager import UserManager
@@ -164,27 +168,8 @@ def upload_document():
         file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         
-        # Get tags from the form data (comma-separated string)
-        tags = []
-        if 'tags' in request.form:
-            tags_string = request.form.get('tags', '')
-            if tags_string:
-                tags = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
-        
-        # Get allowed roles from the form data
-        allowed_roles = []
-        if 'allowed_roles' in request.form:
-            # Check if it's a list (multiple select) or a string (comma-separated)
-            roles_list = request.form.getlist('allowed_roles')
-            if len(roles_list) > 1:
-                allowed_roles = roles_list
-            elif len(roles_list) == 1:
-                # Could be a single role or a comma-separated string
-                val = roles_list[0]
-                if ',' in val:
-                    allowed_roles = [role.strip() for role in val.split(',') if role.strip()]
-                else:
-                    allowed_roles = [val]
+        tags = parse_tags_from_form(request.form)
+        allowed_roles = parse_allowed_roles_from_form(request.form)
         
         # Process the document asynchronously; the uploader is stamped as owner.
         document_id = get_knowledge_manager().process_document(
@@ -223,28 +208,10 @@ def inspect_document():
     if 'document' not in request.files:
         return jsonify({'success': False, 'error': 'No document part'}), 400
     file = request.files['document']
-    if not file or file.filename == '':
-        return jsonify({'success': False, 'error': 'No selected document'}), 400
-
-    original_filename = secure_filename(file.filename)
-    _, ext = os.path.splitext(original_filename)
-    content_type = ext.lower().strip('.')
-    if not tabular_ingest.is_tabular(content_type):
-        return jsonify({'success': True, 'kind': 'document', 'content_type': content_type})
-
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{content_type}") as temp_file:
-            file.save(temp_file)
-            temp_path = temp_file.name
-        info = tabular_ingest.inspect_table(temp_path, content_type)
-        return jsonify({'success': True, 'kind': 'tabular', 'content_type': content_type, **info})
-    except Exception as exc:
-        current_app.logger.error(f"Error inspecting document {original_filename}: {exc}", exc_info=True)
-        return jsonify({'success': False, 'error': f'Could not read file: {exc}'}), 400
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+    info, err, code = inspect_uploaded_file(file)
+    if err is not None:
+        return jsonify({'success': False, 'error': err}), code
+    return jsonify({'success': True, **info})
 
 # Route to handle direct text input
 @knowledge_bp.route('/api/knowledge/text', methods=['POST'])
@@ -405,20 +372,7 @@ def view_original_document(document_id):
         if not os.path.exists(file_path):
             return jsonify({'success': False, 'error': 'File not found on disk'}), 404
         
-        # Determine the MIME type for the response
-        mime_type = 'application/octet-stream'  # Default
-        if content_type:
-            content_type_lower = content_type.lower()
-            if content_type_lower == 'pdf':
-                mime_type = 'application/pdf'
-            elif content_type_lower in ['doc', 'docx']:
-                mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            elif content_type_lower in ['xls', 'xlsx']:
-                mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            elif content_type_lower in ['ppt', 'pptx']:
-                mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-            elif content_type_lower == 'txt':
-                mime_type = 'text/plain'
+        mime_type = document_mimetype(content_type)
         
         return send_from_directory(
             os.path.dirname(file_path),

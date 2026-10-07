@@ -24,7 +24,6 @@ from src.utils.tool_data_contract import (  # re-exported for the runtime packag
     columns_from_payload,
     columns_to_json,
     contract_kind,
-    escape_cell,
     parse_contract,
     render_markdown,
 )

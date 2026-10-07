@@ -5,6 +5,8 @@ import { AccessDialog } from "./inspector/AccessDialog";
 import { ApiIntegrationDialog } from "./inspector/ApiIntegrationDialog";
 import { DataTable } from "../shared/DataTable";
 import { ActionsMenu } from "../shared/ActionsMenu";
+import { DeleteAgentDialog, cloneAgent } from "./AgentListActions";
+import { VersionHistory } from "./VersionHistory";
 import { buildAgentFile, buildExportBundle, downloadJson, parseImportFile } from "./agentTransfer";
 import { blueprintLabel } from "./model/catalog";
 
@@ -52,6 +54,9 @@ export function AgentListPage() {
   const [query, setQuery] = useState("");
   const [manageAgent, setManageAgent] = useState<AgentDef | null>(null);
   const [integrationAgent, setIntegrationAgent] = useState<AgentDef | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AgentDef | null>(null);
+  const [historyAgent, setHistoryAgent] = useState<AgentDef | null>(null);
+  const [cloning, setCloning] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -206,6 +211,18 @@ export function AgentListPage() {
 
   function onAccessChanged() {
     void load();
+  }
+
+  async function onClone(agent: AgentDef) {
+    setCloning(agent.slug);
+    setError(null);
+    try {
+      await cloneAgent(agent, setNotice);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCloning(null);
+    }
   }
 
   return (
@@ -392,6 +409,19 @@ export function AgentListPage() {
                             onSelect: () => void togglePublish(agent),
                           },
                           {
+                            key: "history",
+                            label: "History",
+                            testId: "agent-history",
+                            onSelect: () => setHistoryAgent(agent),
+                          },
+                          {
+                            key: "clone",
+                            label: cloning === agent.slug ? "Cloning…" : "Clone",
+                            testId: "agent-clone",
+                            disabled: cloning != null,
+                            onSelect: () => void onClone(agent),
+                          },
+                          {
                             key: "export",
                             label: "Export",
                             testId: "agent-export-row",
@@ -407,6 +437,12 @@ export function AgentListPage() {
                                   label: "Manage access",
                                   testId: "access-manage",
                                   onSelect: () => setManageAgent(agent),
+                                },
+                                {
+                                  key: "delete",
+                                  label: "Delete",
+                                  testId: "agent-delete",
+                                  onSelect: () => setDeleteTarget(agent),
                                 },
                               ]
                             : []),
@@ -465,6 +501,26 @@ export function AgentListPage() {
         <ApiIntegrationDialog
           agent={integrationAgent}
           onClose={() => setIntegrationAgent(null)}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <DeleteAgentDialog
+          agent={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            setDeleteTarget(null);
+            void load();
+          }}
+        />
+      ) : null}
+
+      {historyAgent ? (
+        <VersionHistory
+          slug={historyAgent.slug}
+          current={historyAgent}
+          onClose={() => setHistoryAgent(null)}
+          onReload={() => void load()}
         />
       ) : null}
     </div>

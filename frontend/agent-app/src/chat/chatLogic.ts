@@ -178,14 +178,44 @@ export function applyEvent(msg: ChatMessage, ev: SseEvent): ChatMessage {
       next.streaming = false;
       next.events!.push(ev);
       break;
+    case "status": {
+      // `fixing_chart` means the reply just streamed cannot be drawn and the
+      // server is asking the model again inside the same turn. Keeping that text
+      // would glue two answers together until `done` replaces them.
+      if (String(ev.message || "") === "fixing_chart") {
+        next.content = "";
+        next.prevContent = undefined;
+        next.swapping = false;
+      }
+      next.events!.push(ev);
+      break;
+    }
     case "skill_load":
     case "tool_result":
     case "progress":
     case "error":
-    case "status":
       next.events!.push(ev);
       if (ev.type === "error") next.error = ev.message || ev.error;
       break;
+    case "tool_data": {
+      // Incremental rows for blocks whose tags just streamed. Merged (not
+      // replaced) so each chart/table/card can draw the moment its tag plus
+      // its rows are both present, without waiting for the final `done`.
+      const incoming = Array.isArray(ev.tool_data) ? ev.tool_data : [];
+      if (incoming.length) {
+        const seen = new Set((next.toolData || []).map((t) => String(t.call_id)));
+        const merged = [...(next.toolData || [])];
+        for (const payload of incoming) {
+          const key = String(payload?.call_id || "");
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          merged.push(payload);
+        }
+        next.toolData = merged;
+      }
+      next.events!.push(ev);
+      break;
+    }
     case "done":
       next.streaming = false;
       // The server's reply is authoritative: it is redacted as a whole (host
@@ -193,8 +223,19 @@ export function applyEvent(msg: ChatMessage, ev: SseEvent): ChatMessage {
       // so client-side accumulation may still contain one.
       if (ev.reply) next.content = String(ev.reply);
       // Charts/tables in the reply are resolved against the cached tables the
-      // server sends with the final event.
-      if (Array.isArray(ev.tool_data)) next.toolData = ev.tool_data;
+      // server sends with the final event. Merged with any incremental rows
+      // already pushed mid-stream, so nothing drawn early disappears.
+      if (Array.isArray(ev.tool_data) && ev.tool_data.length) {
+        const seen = new Set((next.toolData || []).map((t) => String(t.call_id)));
+        const merged = [...(next.toolData || [])];
+        for (const payload of ev.tool_data) {
+          const key = String(payload?.call_id || "");
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          merged.push(payload);
+        }
+        next.toolData = merged;
+      }
       if (hasPrev && next.content) {
         next.swapping = true;
       } else if (hasPrev && !next.content) {
@@ -482,7 +523,9 @@ export function activityItems(events: SseEvent[] | undefined, streaming?: boolea
     } else if (ev.type === "status" || ev.type === "progress") {
       const msg = String(ev.message || ev.state || "").trim();
       if (!msg) continue;
-      out.push({ icon: "bulb", label: capitalize(msg) });
+      // A status arrives as a machine token (`fixing_chart`); the reader gets it
+      // as a sentence.
+      out.push({ icon: "bulb", label: capitalize(msg.replace(/_/g, " ")) });
     } else if (ev.type === "skill_load") {
       const name = skillName(ev);
       if (!name || name === "tool" || seenSkill.has(name)) continue;

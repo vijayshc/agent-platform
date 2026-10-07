@@ -20,10 +20,9 @@ surface, not a silent degradation.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import requests
-from flask import Blueprint, Response, jsonify, request, session
+from flask import Blueprint, Response, jsonify, request
 
 from src.agent_platform.api.auth import api_auth_required, current_user_id
 from src.auth.decorators import admin_required

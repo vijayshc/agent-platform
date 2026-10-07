@@ -10,9 +10,8 @@ from __future__ import annotations
 import shutil
 import threading
 import time
-from pathlib import Path
 
-from src.hosting import applog, archive, environment
+from src.hosting import applog, archive, environment, settings
 from src.hosting.errors import HostingError
 from src.hosting.paths import app_root, code_dir, install_log_path, log_path, run_dir, venv_dir
 from src.models.hosted_app import HostedApp, HostedAppStatus

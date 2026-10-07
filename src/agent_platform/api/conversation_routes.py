@@ -13,6 +13,7 @@ from flask import Blueprint, g, jsonify, request
 from src.agent_platform.api.api_helpers import (
     can_access_conversation,
     conversation_denied,
+    draft_run_denied,
     run_model_client,
     user_can_access_definition,
 )
@@ -74,9 +75,21 @@ def create_conversation():
         # A conversation binds to one agent. Creating one for an agent the
         # caller may not run would persist an unauthorized reference and set
         # the chat up for a guaranteed 403; fail closed at creation instead.
+        # Drafts resolve here too (test-before-publish), gated on agent access
+        # + Studio write; an EXISTING draft the caller cannot access is 403,
+        # and only a genuinely absent agent is 404.
         definition = DefinitionStore.resolve(agent_slug)
         if definition is None:
             return jsonify({"error": "agent not found"}), 404
+        if not definition.get("published"):
+            denied = draft_run_denied(definition, user_id)
+            if denied is not None:
+                err, code = denied
+                if code == 403 and "Agent Studio requires" in str(err.get("message", "")):
+                    g.audit_reason = "missing agent_studio module access"
+                else:
+                    g.audit_reason = "no access to this agent"
+                return jsonify(err), code
         if not user_can_access_definition(definition, user_id):
             g.audit_reason = "no access to this agent"
             return jsonify({"error": "forbidden", "message": "You do not have access to this agent"}), 403
@@ -98,6 +111,8 @@ def _attach_tool_data(conv: dict, messages: list[dict]) -> list[dict]:
     from src.agent_platform.runtime.tool_data import (
         conversation_scope,
         payloads_from_descriptors,
+        referenced_call_ids,
+        resolve_references,
     )
 
     scope = conversation_scope(str(public_id))
@@ -106,12 +121,19 @@ def _attach_tool_data(conv: dict, messages: list[dict]) -> list[dict]:
         if not isinstance(meta, dict):
             continue
         descriptors = meta.get("tool_data")
-        if not isinstance(descriptors, list) or not descriptors:
-            continue
-        payloads = payloads_from_descriptors(descriptors, scope)
+        payloads = (
+            payloads_from_descriptors(descriptors, scope)
+            if isinstance(descriptors, list) and descriptors
+            else []
+        )
+        if not payloads and message.get("role") == "assistant":
+            # A reply stored before fence repair carries no descriptor, yet its
+            # text still names the data it charts. Resolve those references from
+            # the archive so an older turn keeps its chart instead of going blank.
+            payloads = resolve_references(referenced_call_ids(message.get("content")), scope)
         if payloads:
             meta["tool_data"] = payloads
-        else:
+        elif descriptors:
             meta.pop("tool_data", None)
     return messages
 
@@ -185,7 +207,21 @@ def post_conversation_message(conversation_id: str):
         # implicit default agent that bypasses the agent access gate.
         g.audit_reason = "agent not found"
         return jsonify({"error": "agent not found"}), 404
+    if not definition.get("published"):
+        # Draft turns run in the real chat (test-before-publish): same gate as
+        # POST /runs — agent access + Studio write. An EXISTING draft the
+        # caller cannot access is 403; only a genuinely absent agent is 404.
+        denied = draft_run_denied(definition, current_user_id())
+        if denied is not None:
+            err, code = denied
+            if code == 403 and "Agent Studio requires" in str(err.get("message", "")):
+                g.audit_reason = "missing agent_studio module access"
+            else:
+                g.audit_reason = "no access to this agent"
+            return jsonify(err), code
     if not user_can_access_definition(definition, current_user_id()):
+        # Published and draft denials alike stay 403 on an existing agent;
+        # a missing agent already left via the 404 above.
         g.audit_reason = "no access to this agent"
         return jsonify({"error": "forbidden", "message": "You do not have access to this agent"}), 403
     client, model_error = run_model_client(data)

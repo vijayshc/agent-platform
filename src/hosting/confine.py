@@ -370,6 +370,59 @@ def resolver_paths() -> list[str]:
     return resolved
 
 
+def pth_paths() -> list[str]:
+    """Directories the base interpreter's ``.pth`` files add to ``sys.path``.
+
+    A per-app virtualenv is built with ``--system-site-packages`` so an archive
+    can use the platform's own libraries without a package index. That puts the
+    base interpreter's site-packages on ``sys.path``, and ``site`` executes its
+    ``.pth`` files - including an editable install, whose ``.pth`` is a plain
+    path to a source tree elsewhere on the machine. pip enumerates *every*
+    ``sys.path`` entry for installed distributions, so it tries to scan that
+    tree; under Landlock the scan is denied and the whole install fails with
+    "Permission denied", even when there is nothing to install.
+
+    Granting read+execute on those directories keeps a developer machine's
+    editable installs from breaking an install. They are the operator's own
+    trees (already on the interpreter's path), and the grant is read-only and
+    applies only during installation - the run profile is untouched.
+    """
+    import sysconfig
+    from pathlib import Path as _Path
+
+    from src.hosting import settings as _settings
+
+    try:
+        paths = sysconfig.get_paths()
+    except (KeyError, OSError):
+        return []
+    platform_root = str(_settings.platform_root())
+    found: list[str] = []
+    for key in ("purelib", "platlib"):
+        root = paths.get(key)
+        if not root:
+            continue
+        for pth in _Path(root).glob("*.pth"):
+            try:
+                lines = pth.read_text(errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                entry = line.strip()
+                # Only plain path lines; "import ..." lines run a finder whose
+                # target is not added to sys.path and so is never scanned.
+                if not entry or entry.startswith(("#", "import")):
+                    continue
+                candidate = _Path(entry)
+                if not candidate.is_dir():
+                    continue
+                text = str(candidate)
+                if text in found or text == platform_root or text.startswith(platform_root + os.sep):
+                    continue
+                found.append(text)
+    return found
+
+
 def install_profile_paths(app_dir: str, include_proc: bool = True) -> tuple[list[str], list[str]]:
     """Filesystem policy for running pip or npm at install time.
 
@@ -379,7 +432,7 @@ def install_profile_paths(app_dir: str, include_proc: bool = True) -> tuple[list
     the installer has to reach PyPI or the npm registry - which is why this
     profile is never used to *run* an app.
     """
-    read_only = [*LANDLOCK_READ_ONLY, *node_prefixes(), *resolver_paths()]
+    read_only = [*LANDLOCK_READ_ONLY, *node_prefixes(), *resolver_paths(), *pth_paths()]
     if include_proc:
         read_only += list(LANDLOCK_INSTALL_READ_ONLY)
     if sys.prefix not in read_only:

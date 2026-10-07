@@ -69,6 +69,7 @@ def _render_admin_app():
 
 
 @agent_bp.route("/", methods=["GET"])
+@agent_bp.route("/home", methods=["GET"])
 @agent_bp.route("/agent", methods=["GET"])
 @login_required
 def agent_page():

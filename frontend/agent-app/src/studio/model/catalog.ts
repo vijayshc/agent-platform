@@ -151,7 +151,10 @@ export function loadedNodeData(catalog: StudioCatalog | null, paletteType: strin
 export function defaultNodeData(catalog: StudioCatalog | null, paletteType: string): NodeData {
   const runtime = runtimeById(catalog, paletteType);
   if (runtime) {
-    const defaults = catalog?.resources?.model_clients?.find((c) => c.is_default);
+    // Agents never pin a connection: the run-level (chat) model always wins.
+    // Seeding the operator's default id here would freeze that connection into
+    // every new agent, silently overriding the caller's model pick forever.
+    void catalog;
     return {
       paletteType,
       label: runtime.label,
@@ -159,8 +162,8 @@ export function defaultNodeData(catalog: StudioCatalog | null, paletteType: stri
       instructions: "",
       description: "",
       runtime: runtime.id,
-      modelClient: defaults?.id || "default",
-      modelName: defaults?.model_name || "",
+      modelClient: "default",
+      modelName: "",
       mcpBindings: [],
       skillIds: [],
       functionTools: [],

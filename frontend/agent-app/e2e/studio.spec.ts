@@ -6,8 +6,9 @@ declare const Buffer: { from(input: string, encoding?: string): Uint8Array };
 /** Agent Studio v2 editor.
  *
  * The DOM contract these tests drive (`studio-graph`, `palette-*`,
- * `studio-node-*`, `inspector-*`, `testrun-*`) is documented in
+ * `studio-node-*`, `inspector-*`) is documented in
  * docs/agent-studio-v2.md §4 and must keep working: the editor is the API.
+ * Runs execute in the real chat page (`/agent?agent=`), never in the Studio.
  */
 
 async function login(page: Page) {
@@ -209,42 +210,27 @@ test.describe("Agent Studio v2", () => {
     expect(saved.config.deep_agent.subagents[0].name).toBe("scout");
   });
 
-  test("test run: HITL deny then approve through the run dock", async ({ page }) => {
-    const requested: string[] = [];
-    page.on("request", (request) => requested.push(new URL(request.url()).pathname));
-    await openEditor(page, "?slug=hitl-writer");
-    await expect(graph(page)).toHaveAttribute("data-node-types", /agent/, { timeout: 20_000 });
-
+  test("test in chat: saved agent opens the real chat; unsaved asks to save first", async ({ page, context }) => {
+    await openEditor(page);
+    // Unsaved: no slug yet, so the button blocks with the save hint.
+    await expect(page.getByTestId("studio-testrun")).toContainText(/Test in chat/i);
     await page.getByTestId("studio-testrun").click();
-    await expect(page.getByTestId("testrun-drawer")).toBeVisible();
-    await page.getByTestId("testrun-input").fill("write the file");
-    await page.getByTestId("testrun-send").click();
-    await expect(page.getByTestId("hitl-card")).toBeVisible({ timeout: 25_000 });
-    const denyRunId = await page.getByTestId("testrun-drawer").getAttribute("data-run-id");
-    expect(denyRunId).toBeTruthy();
-    await page.getByTestId("hitl-deny").click();
-    await page.getByTestId("hitl-confirm-deny").click();
-    await expect(page.getByTestId("testrun-drawer")).toHaveAttribute("data-streaming", "0", { timeout: 25_000 });
-    await expect.poll(async () => {
-      const body = await (await page.request.get(`/api/v1/runs/${denyRunId}`)).json();
-      return body.status;
-    }).not.toBe("awaiting_approval");
+    await expect(page.getByTestId("studio-status")).toContainText(/Save first, then test in chat/i);
 
-    await page.getByTestId("testrun-input").fill("write the file again");
-    await page.getByTestId("testrun-send").click();
-    await expect(page.getByTestId("hitl-card")).toBeVisible({ timeout: 25_000 });
-    const approveRunId = await page.getByTestId("testrun-drawer").getAttribute("data-run-id");
-    expect(approveRunId).toBeTruthy();
-    expect(approveRunId).not.toBe(denyRunId);
-    await page.getByTestId("hitl-approve").click();
-    await expect(page.getByTestId("testrun-drawer")).toHaveAttribute("data-streaming", "0", { timeout: 25_000 });
-    await expect.poll(async () => {
-      const body = await (await page.request.get(`/api/v1/runs/${approveRunId}`)).json();
-      return body.status;
-    }).not.toBe("awaiting_approval");
+    // Save, then the same button opens /agent?agent=<slug> in a new tab.
+    await page.getByTestId("studio-title").fill("Chat Probe");
+    await addFromPalette(page, "agent");
+    await page.getByTestId("inspector-name").fill("Chat Probe");
+    await fillInstructions(page, "Answer briefly.");
+    await save(page);
+    await expect(page).toHaveURL(/slug=chat-probe/);
 
-    expect(requested.some((path) => path === "/api/v1/runs")).toBeTruthy();
-    expect(requested.some((path) => /\/api\/v1\/runs\/.+\/approvals/.test(path))).toBeTruthy();
+    const popupPromise = context.waitForEvent("page");
+    await page.getByTestId("studio-testrun").click();
+    const popup = await popupPromise;
+    await popup.waitForURL(/\/agent\?agent=chat-probe/, { timeout: 20_000 });
+    await expect(popup.getByTestId("agent-composer")).toBeVisible({ timeout: 20_000 });
+    await popup.close();
   });
 
   test("skills are authored in the Skill Library and bound in the inspector", async ({ page }) => {

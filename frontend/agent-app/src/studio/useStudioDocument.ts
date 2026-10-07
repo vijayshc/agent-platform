@@ -84,8 +84,6 @@ export interface StudioDocument {
   /** Increments when the canvas should be fitted to its nodes. */
   fitToken: number;
   requestFit: () => void;
-  /** Increments when a different document lands on the canvas. */
-  docId: number;
   setStatus: (status: string) => void;
   setError: (error: string | null) => void;
   setReport: (report: ValidateReport | null) => void;
@@ -93,7 +91,6 @@ export interface StudioDocument {
   save: (autosave?: boolean) => Promise<AgentDef | null>;
   validate: () => Promise<ValidateReport | null>;
   publish: () => Promise<void>;
-  draftDefinition: () => { name: string; kind: string; config: Record<string, unknown> } | null;
   openSlug: (slug: string) => Promise<void>;
   newAgent: () => void;
   exportJson: () => void;
@@ -174,10 +171,8 @@ export function useStudioDocument(): StudioDocument {
         "Re-add them with Skills or MCP tools on the agent.",
     );
   }, []);
-  // Identity of the document on the canvas: a new document resets the run dock.
-  const [docId, setDocId] = useState(0);
+  // A new document lands on the canvas: the viewport fits it.
   const nextDocument = useCallback(() => {
-    setDocId((id) => id + 1);
     requestFit();
   }, [requestFit]);
   const preserved = useRef<Record<string, unknown>>({});
@@ -346,23 +341,27 @@ export function useStudioDocument(): StudioDocument {
   const payload = useCallback(() => exportGraph(nodes, edges, meta), [edges, exportGraph, meta, nodes]);
 
   const save = useCallback(
-    async (autosave = false): Promise<AgentDef | null> => {
+    async (_autosave = false): Promise<AgentDef | null> => {
       setError(null);
       setBusy(true);
       try {
-        const body = exportGraph(nodes, edges, meta, autosave);
+        // Explicit save only: the autosave flag is kept for call-site compat
+        // but never changes behaviour. PUT never bumps the version; only
+        // publish snapshots a new version.
+        const body = exportGraph(nodes, edges, meta, false);
         const row = current?.id ? await updateDefinition(current.slug, body) : await createDefinition(body);
         setCurrent(row);
         dispatch({ type: "sync-meta", patch: { slug: row.slug, name: row.name } });
         dispatch({ type: "mark-clean" });
         // Saving a definition the checks reject must never be silent: validate
         // alongside the write and say so in the status line.
-        const check = autosave ? null : await validateDefinition(row.slug, body).catch(() => null);
+        const check = await validateDefinition(row.slug, body).catch(() => null);
         if (check) setReport(check);
         const fresh = check && !check.ok ? check.errors.length : 0;
         const known = fresh || (report && !report.ok ? report.errors.length : 0);
         const suffix = known ? ` · ${known} check error${known === 1 ? "" : "s"} — open Checks` : "";
-        setStatus(`${autosave ? `Draft autosaved v${row.version}` : `Saved v${row.version}`}${suffix}`);
+        const draft = Boolean((row as AgentDef).has_draft_changes);
+        setStatus(`${draft ? "Saved • unpublished changes" : `Saved v${row.version ?? 1}`}${suffix}`);
         setChecksNotice(known || null);
         window.history.replaceState({}, "", `/agent-studio/editor?slug=${encodeURIComponent(row.slug)}`);
         void refreshAgents();
@@ -405,7 +404,7 @@ export function useStudioDocument(): StudioDocument {
     try {
       const row = await publishDefinition(saved.slug, true);
       setCurrent(row);
-      setStatus("Published");
+      setStatus(`Published v${row.version ?? row.published_version ?? saved.version ?? 1}`);
       void refreshAgents();
     } catch (publishError) {
       setError(publishError instanceof Error ? publishError.message : String(publishError));
@@ -413,12 +412,6 @@ export function useStudioDocument(): StudioDocument {
       setBusy(false);
     }
   }, [refreshAgents, save, validate]);
-
-  useEffect(() => {
-    if (!state.dirty || !current) return;
-    const timer = window.setTimeout(() => void save(true), 1800);
-    return () => window.clearTimeout(timer);
-  }, [state.dirty, state.revision, current, save]);
 
   useEffect(() => {
     if (!hint) return;
@@ -485,12 +478,6 @@ export function useStudioDocument(): StudioDocument {
     [catalog, nextDocument, reportMigration, settleGraph],
   );
 
-  const draftDefinition = useCallback(() => {
-    if (current) return null;
-    const body = exportGraph(nodes, edges, meta);
-    return { name: body.name, kind: body.kind, config: body.config as Record<string, unknown> };
-  }, [current, edges, exportGraph, meta, nodes]);
-
   return useMemo(
     () => ({
       state,
@@ -519,7 +506,6 @@ export function useStudioDocument(): StudioDocument {
       onFocusChecks,
       fitToken,
       requestFit,
-      docId,
       setStatus,
       setError,
       setReport,
@@ -527,7 +513,6 @@ export function useStudioDocument(): StudioDocument {
       save,
       validate,
       publish,
-      draftDefinition,
       openSlug,
       newAgent,
       exportJson,
@@ -561,11 +546,9 @@ export function useStudioDocument(): StudioDocument {
       onFocusChecks,
       fitToken,
       requestFit,
-      docId,
       save,
       validate,
       publish,
-      draftDefinition,
       openSlug,
       newAgent,
       exportJson,

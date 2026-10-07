@@ -1,0 +1,580 @@
+/* NOTE: qualified as .aa-root.aa-home (0-2-0) on purpose. The shipped bundle
+   places styles.css `.aa-root{overflow:hidden}` AFTER this file, so a bare
+   `.aa-home` (0-1-0) loses the cascade and the page can't scroll. The extra
+   class makes the scroll rule win regardless of bundle order. */
+.aa-root.aa-home {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg-color, transparent);
+}
+
+.aa-home-topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 28px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.aa-home-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.aa-home-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--hover-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.aa-home-brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.aa-home-topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.aa-home-userbtn {
+  gap: 6px;
+  padding: 5px 9px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+.aa-home-user {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aa-home-main {
+  width: min(1560px, 100%);
+  margin: 0 auto;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.aa-home-pagehead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.aa-home-h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.aa-home-sub {
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+.aa-home-newbtn {
+  font-size: 12px;
+  padding: 5px 11px;
+}
+
+.aa-home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.aa-home-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aa-home-searchwrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--card-bg);
+  padding: 0 10px;
+  height: 34px;
+  width: min(340px, 100%);
+  color: var(--text-secondary);
+}
+
+.aa-home-searchwrap:focus-within {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* The input defaults to type="text", so Flask-served themes.css
+   `input[type="text"]{border:1px solid ... !important}` paints its own box
+   inside the wrap pill. Note `input[type="text"]` is specificity (0,1,1), so a
+   bare class (0,1,0) loses even with !important — the wrap-scoped selector
+   below is (0,2,0) and wins regardless of stylesheet order. */
+.aa-home-searchwrap .aa-home-search,
+.aa-home-searchwrap .aa-home-search:focus {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  appearance: none;
+  background: transparent !important;
+  border-radius: 0 !important;
+  color: var(--text-primary);
+  width: 100%;
+  font-size: 13.5px;
+  font-family: inherit;
+  padding: 0 !important;
+}
+
+.aa-home-search::placeholder {
+  color: var(--text-muted);
+}
+
+.aa-home-sortwrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aa-home-sortlabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Compact enterprise sort: quiet aa-btn surface with a drawn caret. */
+.aa-home-sort {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 24px 5px 10px;
+  border-radius: 8px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% + 1px),
+    calc(100% - 9px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  font-family: inherit;
+  max-width: 170px;
+}
+
+.aa-home-sort:hover {
+  border-color: var(--text-muted);
+}
+
+.aa-home-viewtoggle {
+  display: flex;
+  gap: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  padding: 3px;
+  background: var(--card-bg);
+}
+
+.aa-home-iconbtn {
+  padding: 5px 7px;
+  line-height: 1;
+  font-size: 12px;
+}
+
+/* Active toggle is a quiet pressed state — never a blue ring. */
+.aa-home-iconbtn.active {
+  background: var(--hover-bg);
+  border-color: transparent;
+}
+
+.aa-home-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 4px;
+  font-size: 13.5px;
+}
+
+.aa-home-spin {
+  animation: aa-home-rotate 0.9s linear infinite;
+}
+
+@keyframes aa-home-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.aa-home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.aa-home-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+/* Flat enterprise hover: border-only, never a shadow lift. */
+.aa-home-card:hover {
+  border-color: var(--text-muted);
+  box-shadow: none;
+  background: var(--card-bg);
+}
+
+.aa-home-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.aa-home-card-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Agent name is the chat entry point (carries data-testid="home-chat"). */
+.aa-home-namelink {
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aa-home-namelink:hover {
+  color: var(--button-secondary-text);
+  text-decoration: underline;
+}
+
+.aa-home-ver {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 1px 8px;
+}
+
+.aa-home-card-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 36px;
+}
+
+.aa-home-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+.aa-home-card-metaleft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.aa-home-card-by,
+.aa-home-card-updated {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
+.aa-home-section-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.aa-home-card-actions,
+.aa-home-row-actions {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* Compact enterprise density: one step down from the default aa-btn. */
+.aa-home-editbtn,
+.aa-home-favbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+/* Home icon/text buttons follow the shared secondary-button theme vars so
+   all three themes (dark / light / light-colored) restyle them together
+   with every other .aa-btn. Previously these overrides hardcoded
+   transparent + --text-secondary at (0,2,0), beating .aa-btn (0,1,0) and
+   hiding the light-colored blue secondary surface. */
+.aa-home-card .aa-home-editbtn,
+.aa-home-row-actions .aa-home-editbtn,
+.aa-home-card .aa-home-favbtn,
+.aa-home-row-actions .aa-home-favbtn {
+  background: var(--button-secondary-bg);
+  background-color: var(--button-secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--button-secondary-text);
+}
+
+.aa-home-card .aa-home-editbtn:hover,
+.aa-home-row-actions .aa-home-editbtn:hover,
+.aa-home-card .aa-home-favbtn:hover,
+.aa-home-row-actions .aa-home-favbtn:hover {
+  background: var(--button-secondary-hover);
+  background-color: var(--button-secondary-hover);
+  border-color: var(--text-muted);
+  color: var(--button-secondary-text);
+}
+
+.aa-home-favbtn.active {
+  color: var(--button-secondary-text);
+}
+
+/* Keyboard access stays visible but restrained: dark neutral, never blue. */
+.aa-home-card .aa-home-editbtn:focus-visible,
+.aa-home-row-actions .aa-home-editbtn:focus-visible,
+.aa-home-card .aa-home-favbtn:focus-visible,
+.aa-home-row-actions .aa-home-favbtn:focus-visible,
+.aa-home-iconbtn:focus-visible,
+.aa-home-sort:focus-visible,
+.aa-home-userbtn:focus-visible {
+  outline: 1px solid var(--text-muted);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.aa-home-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+
+.aa-home-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.aa-home-row:last-child {
+  border-bottom: 0;
+}
+
+.aa-home-row:hover {
+  background: var(--hover-bg);
+}
+
+.aa-home-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.aa-home-row-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.aa-home-row-desc {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Fixed right-side meta column: identical x-position on every row,
+   right-aligned, fixed width, truncated. Never flows with the description. */
+.aa-home-row-meta {
+  flex: 0 0 220px;
+  width: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: right;
+}
+
+.aa-home-row-meta-by {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.aa-home-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.aa-home-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 64px 16px;
+  text-align: center;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.aa-home-empty-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--hover-bg);
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.aa-home-empty-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .aa-home-topbar {
+    padding: 0 14px;
+    gap: 10px;
+  }
+
+  .aa-home-main {
+    padding: 16px 14px 32px;
+  }
+
+  .aa-home-row-desc {
+    display: none;
+  }
+
+  .aa-home-row {
+    grid-template-columns: minmax(0, 1fr) 150px auto;
+  }
+
+  .aa-home-row-meta {
+    flex-basis: 150px;
+    width: 150px;
+  }
+}
+
+@media (max-width: 560px) {
+  .aa-home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .aa-home-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .aa-home-toolbar-right {
+    flex-wrap: wrap;
+  }
+
+  .aa-home-searchwrap {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .aa-home-pagehead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

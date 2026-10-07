@@ -89,7 +89,7 @@ class _ThreadLog:
         with self._lock:
             return list(self._log[index:]), len(self._log)
 
-    def wait_next(self, timeout: float) -> str | None | "timeout":
+    def wait_next(self, timeout: float) -> str | None:
         try:
             return self._queue.get(timeout=timeout)
         except Empty:

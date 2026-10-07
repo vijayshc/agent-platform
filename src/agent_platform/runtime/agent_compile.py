@@ -42,13 +42,12 @@ def _model_client(config: dict[str, Any], ctx: CompileContext) -> Any:
     )
     from src.utils.llm_connection_manager import apply_model_options
 
-    # The run owns the model choice: the connection the caller picked (chat or
-    # Studio test-run) always wins, and with no pick the operator's default
-    # connection is used. A model pinned in the agent definition is design-time
-    # metadata only and never overrides a run — otherwise a stale pin silently
-    # runs the agent on a connection nobody chose (e.g. one out of credits).
-    run_client = getattr(ctx, "client", None)
-    client = run_client if run_client is not None else compile_model_client(None, ctx)
+    # The agent's own model spec decides, exactly as ``compile_model_client``
+    # documents: a pinned connection wins, ``client: "default"`` (or no client)
+    # follows the run-level pick, and with neither the operator's default
+    # connection is used. Passing the spec through is what lets a scripted agent
+    # run at all, and what makes a deliberate pin actually take effect.
+    client = compile_model_client(config.get("model"), ctx)
     # The agent's own generation parameters (default_options / max_output_tokens)
     # override the connection's Model Parameters for this agent only.
     return apply_model_options(client, generation_options(config))
@@ -301,17 +300,19 @@ async def compile_agent(
     data_policy = policy_from_config(config)
     # The conversation scope is resolved only when a tool actually opted in: an
     # agent with no data tools must not pay for (or create) a cache directory.
+    data_scope = scope_for(getattr(ctx, "run_id", None), getattr(ctx, "conversation_id", None))
     data_middleware = (
-        build_tool_data_middleware(
-            data_policy,
-            scope_for(getattr(ctx, "run_id", None), getattr(ctx, "conversation_id", None)),
-            getattr(ctx, "run_id", None),
-        )
+        build_tool_data_middleware(data_policy, data_scope, getattr(ctx, "run_id", None))
         if data_policy.active
         else None
     )
     if data_middleware is not None:
-        middleware = [data_middleware, *middleware]
+        # A block the server cannot draw from the cached data is reported back to
+        # the model inside its own turn, in the agent that wrote it. It is part of
+        # the same data contract, so it is installed exactly when the cache is.
+        from src.agent_platform.runtime.tool_data import ChartRepairMiddleware
+
+        middleware = [ChartRepairMiddleware(data_scope), data_middleware, *middleware]
     instructions = _instructions(config, ctx, name, client, data_policy)
     structured = response_format_for(config)
     runtime = normalize_runtime(config)

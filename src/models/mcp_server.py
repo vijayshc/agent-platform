@@ -252,7 +252,7 @@ class MCPServer:
                     conn.commit()
                     return self
 
-                except Exception as e:
+                except Exception:
                     conn.rollback()
                     raise
                 finally:
@@ -290,7 +290,7 @@ class MCPServer:
                     conn.commit()
                     return True
 
-                except Exception as e:
+                except Exception:
                     conn.rollback()
                     raise
                 finally:

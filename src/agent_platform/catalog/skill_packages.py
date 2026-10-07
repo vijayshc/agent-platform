@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from src.agent_platform.catalog.skills_store import MafSkillStore
-from src.agent_platform.paths import SKILLS_DIR, user_skills_dir
+from src.agent_platform.paths import SKILLS_DIR, is_path_under, user_skills_dir
 from src.auth import resource_access
 
 #: Canonical resource type for on-disk SKILL.md packages (``maf_skills.id``).
@@ -203,12 +203,8 @@ def delete_package(name: str, *, actor_id: int | None = None) -> bool:
     return removed
 
 
-def _is_under(path: Path, root: Path) -> bool:
-    try:
-        path.resolve().relative_to(root.resolve())
-        return True
-    except ValueError:
-        return False
+# Backward compatibility alias
+_is_under = is_path_under
 
 
 def _yaml_quote(value: str) -> str:

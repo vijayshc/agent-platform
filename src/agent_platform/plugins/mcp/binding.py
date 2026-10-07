@@ -136,7 +136,9 @@ class MCPBindingPlugin:
 
         # Pure build: validates the transport config at compile time without
         # authorizing a session; ``connect()`` rebuilds through the enforced path.
-        connection = connection_config(server, workspace_dir=workspace_dir)
+        connection = connection_config(
+            server, workspace_dir=workspace_dir, user_id=user_id
+        )
         return MCPBindingHandle(
             name=server.name,
             connection=connection,

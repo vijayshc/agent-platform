@@ -4,7 +4,7 @@ Skill management routes for admin interface
 
 from collections import Counter
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify
 from src.models.skill import (
     Skill,
     SkillCategory,
@@ -18,7 +18,6 @@ from src.auth.decorators import current_user_id_for_rbac, module_required
 from src.auth.resource_access import is_admin
 from src.utils.skill_vectorizer import SkillVectorizer
 import logging
-import json
 
 skill_bp = Blueprint('skill', __name__)
 logger = logging.getLogger('text2sql.skill_routes')
@@ -329,7 +328,6 @@ def search_skills():
     try:
         data = request.get_json()
         query = data.get('query', '')
-        category = data.get('category')
         limit = data.get('limit', 10)
         
         if not query:

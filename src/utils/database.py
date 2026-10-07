@@ -184,7 +184,7 @@ def get_db_connection():
             else:
                 # Re-raise if not a lock error or max retries exceeded
                 raise
-        except Exception as e:
+        except Exception:
             # Re-raise any other exceptions immediately
             raise
 

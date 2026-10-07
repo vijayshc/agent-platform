@@ -23,6 +23,12 @@ export interface AgentDef {
   model?: { client?: string; name?: string | null } | null;
   published: boolean;
   version?: number;
+  /** Latest published snapshot number (null when never published). */
+  published_version?: number | null;
+  /** True when the saved draft differs from the published snapshot. */
+  has_draft_changes?: boolean;
+  /** Number of published snapshots. */
+  versions_count?: number;
   /** Only published rows carry counts; drafts do not. */
   tool_count?: number;
   skill_count?: number;
@@ -37,6 +43,15 @@ export interface AgentDef {
   access?: AgentAccess[];
   /** Server verdict: the caller may delete this agent / change its grants. */
   can_manage?: boolean;
+}
+
+export interface AgentVersion {
+  version: number;
+  name: string;
+  kind: string;
+  created_at?: string;
+  created_by?: number | null;
+  created_by_name?: string | null;
 }
 
 export interface McpToolDetail {

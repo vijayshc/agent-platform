@@ -19,37 +19,25 @@ Tenancy / module gates
 from __future__ import annotations
 
 import logging
-import threading
-from pathlib import Path
 from flask import Blueprint, g, jsonify, request
 
 from src.agent_platform.api.auth import api_auth_required, current_user_id
 from src.auth.decorators import module_required
 from src.agent_platform.api.api_helpers import (
-    can_access_conversation,
-    conversation_denied,
     run_model_client,
     user_can_access_definition,
 )
-from src.agent_platform.api.run_stream import (
-    HOST,
-    build_run_sse_response,
-    get_cancel_event,
-    pop_cancel_event,
-    run_on_loop,
-    set_cancel_event,
+from src.agent_platform.api.run_service import (
+    execute_sync_run,
+    list_workspace_files,
+    phoenix_project_candidates,
+    prepare_run,
+    validate_resume_request,
 )
+from src.agent_platform.api.run_stream import build_run_sse_response, get_cancel_event
 from src.agent_platform.catalog.store import DefinitionStore
-from src.agent_platform.conversations.store import ConversationStore
 from src.agent_platform.execution.run_store import RunStore
 from src.agent_platform.execution.span_sink import SpanSink
-from src.agent_platform.paths import run_workspace_dir
-from src.agent_platform.runtime.hitl import (
-    HitlPayloadError,
-    normalize_decisions,
-    pending_action_requests,
-)
-from src.agent_platform.runtime.model_select import parse_model_payload
 
 logger = logging.getLogger("text2sql.agent_platform")
 run_bp = Blueprint("run_api", __name__)
@@ -59,29 +47,12 @@ run_bp = Blueprint("run_api", __name__)
 _CANCELLABLE_STATUSES = {"running", "pending", "awaiting_approval", "cancelling"}
 
 
-def _list_workspace_files(workspace_dir: str | None) -> list[str]:
-    if not workspace_dir:
-        return []
-    root = Path(workspace_dir)
-    if not root.is_dir():
-        return []
-    # ``.agent-workspace-baseline.json`` is the platform's own snapshot of the
-    # seeded scaffold; the agent did not produce it, so it is not a deliverable.
-    internal = {".agent-workspace-baseline.json"}
-    out: list[str] = []
-    for path in root.rglob("*"):
-        if path.is_file() and path.name not in internal:
-            out.append(str(path.relative_to(root)))
-    return sorted(out)
-
-
 @run_bp.get("/phoenix/status")
 @api_auth_required("runs:read")
 @module_required("observability")
 def phoenix_status():
-    from src.services.phoenix_service import get_phoenix_url, is_phoenix_healthy, start_phoenix_server
+    from src.services.phoenix_service import is_phoenix_healthy, start_phoenix_server
 
-    url = get_phoenix_url()
     healthy = is_phoenix_healthy()
     if not healthy:
         start_phoenix_server()
@@ -132,7 +103,7 @@ def get_run(run_id: str):
     events = SpanSink.get_events(rid)
     run_dict["events"] = events
     run_dict["spans"] = events
-    run_dict["workspace_files"] = _list_workspace_files(run.get("workspace_dir"))
+    run_dict["workspace_files"] = list_workspace_files(run.get("workspace_dir"))
     return jsonify(run_dict)
 
 
@@ -140,69 +111,31 @@ def get_run(run_id: str):
 @api_auth_required("runs:write")
 def create_run():
     data = request.get_json(silent=True) or {}
-    task = (data.get("task") or data.get("prompt") or data.get("input") or "").strip()
-    agent_id = data.get("agent_id") or data.get("agent") or data.get("slug")
-    inline_def = data.get("definition")
-    conversation_id = data.get("conversation_id")
-    attachments = list(data.get("attachments") or [])
-
-    definition = None
-    if inline_def and isinstance(inline_def, dict):
-        definition = inline_def
-    elif agent_id:
-        definition = DefinitionStore.resolve(str(agent_id))
-
-    if definition is None:
-        return jsonify({"error": "agent or definition is required"}), 400
-
     user_id = current_user_id()
-    if not user_can_access_definition(definition, user_id):
-        g.audit_reason = "no access to this agent"
-        return jsonify({"error": "forbidden", "message": "You do not have access to this agent"}), 403
-
-    # Resolve the caller's model before anything is persisted: an unusable pick
-    # must fail the request without leaving a conversation, message, or run behind.
-    client, model_error = run_model_client(data)
-    if model_error is not None:
-        return model_error
-
-    if conversation_id is not None:
-        try:
-            conv = ConversationStore.get(conversation_id)
-            if conv is not None and not can_access_conversation(conv, user_id):
-                return conversation_denied()
-            if conv is None:
-                conv = ConversationStore.create(user_id=user_id, agent_slug=definition.get("slug") or str(agent_id))
-            conversation_id = int(conv["id"])
-        except Exception:
-            conv = ConversationStore.create(user_id=user_id, agent_slug=definition.get("slug") or str(agent_id))
-            conversation_id = int(conv["id"])
-        ConversationStore.add_message(int(conversation_id), "user", task, meta={"attachments": attachments} if attachments else None)
-
-    run = RunStore.create(
-        task=task,
-        definition_id=definition.get("id"),
-        user_id=user_id,
-        conversation_id=int(conversation_id) if conversation_id else None,
-        agent_slug=definition.get("slug"),
-        entity_type=definition.get("kind") or "agent",
-        entity_id=definition.get("id") or 0,
-        input_payload={"task": task, "attachments": attachments, "model": parse_model_payload(data)},
+    run, definition, task, cid, client, attachments, err, code = prepare_run(
+        data,
+        user_id,
+        published_only=False,
+        require_input=False,
+        access_checker=user_can_access_definition,
     )
-    run_id = int(run["id"])
-    workspace = str(run_workspace_dir(run_id, conversation_id))
-    RunStore.update_workspace(run_id, workspace)
+    if err:
+        if "__flask_response__" in err:
+            return err["__flask_response__"]
+        if code == 403:
+            g.audit_reason = "no access to this agent"
+        return jsonify(err), code
 
     stream = bool(data.get("stream", False)) or ("text/event-stream" in request.headers.get("Accept", ""))
     if stream:
-        return build_run_sse_response(run, definition, task, conversation_id, client=client)
+        return build_run_sse_response(run, definition, task, cid, client=client)
 
     return jsonify({
-        "id": run_id,
+        "id": int(run["id"]),
         "public_id": run["public_id"],
         "status": "pending",
-        "conversation_id": conversation_id,
-        "workspace_dir": workspace,
+        "conversation_id": cid,
+        "workspace_dir": run["workspace_dir"],
         "stream_url": f"/api/v1/runs/{run['public_id']}/stream",
     }), 201
 
@@ -260,76 +193,33 @@ def _invoke_agent_route(agent_id: str, stream: bool = False):
     elif "text/event-stream" in request.headers.get("Accept", ""):
         stream = True
 
-    definition = DefinitionStore.resolve(str(agent_id), published_only=True)
-    if definition is None:
-        return jsonify({"error": "agent not found"}), 404
-    if not user_can_access_definition(definition, current_user_id()):
-        g.audit_reason = "no access to this agent"
-        return jsonify({"error": "forbidden", "message": "You do not have access to this agent"}), 403
-
-    input_text = (data.get("input") or data.get("prompt") or data.get("task") or "").strip()
-    if not input_text:
-        return jsonify({"error": "input is required"}), 400
-
-    conversation_id = data.get("conversation_id")
-    attachments = list(data.get("attachments") or [])
     user_id = current_user_id()
-
-    # Resolve the caller's model before anything is persisted: an unusable pick
-    # must fail the request without leaving a conversation, message, or run behind.
-    client, model_error = run_model_client(data)
-    if model_error is not None:
-        return model_error
-
-    if conversation_id is not None:
-        try:
-            conv = ConversationStore.get(int(conversation_id))
-            if conv is not None and not can_access_conversation(conv, user_id):
-                return conversation_denied()
-            if conv is None:
-                conv = ConversationStore.create(user_id=user_id, agent_slug=definition.get("slug") or str(agent_id))
-                conversation_id = int(conv["id"])
-        except Exception:
-            conv = ConversationStore.create(user_id=user_id, agent_slug=definition.get("slug") or str(agent_id))
-            conversation_id = int(conv["id"])
-        ConversationStore.add_message(int(conversation_id), "user", input_text, meta={"attachments": attachments} if attachments else None)
-
-    run = RunStore.create(
-        task=input_text,
-        definition_id=definition.get("id"),
-        user_id=user_id,
-        conversation_id=int(conversation_id) if conversation_id else None,
-        agent_slug=definition.get("slug"),
-        entity_type=definition.get("kind") or "agent",
-        entity_id=definition.get("id") or 0,
-        input_payload={"task": input_text, "attachments": attachments, "model": parse_model_payload(data)},
+    run, definition, input_text, cid, client, attachments, err, code = prepare_run(
+        data,
+        user_id,
+        agent_id=agent_id,
+        published_only=False,
+        require_input=True,
+        access_checker=user_can_access_definition,
     )
-    rid = int(run["id"])
-    workspace = str(run_workspace_dir(rid, conversation_id))
-    RunStore.update_workspace(rid, workspace)
+    if err:
+        if "__flask_response__" in err:
+            return err["__flask_response__"]
+        if code == 403:
+            g.audit_reason = "no access to this agent"
+        # The invoke route addresses one agent: a missing slug is 404, never
+        # the generic "definition required" 400 the multi-source /runs keeps.
+        if code == 400 and err.get("error") == "agent or definition is required":
+            return jsonify({"error": "agent not found"}), 404
+        return jsonify(err), code
 
     if stream:
-        return build_run_sse_response(run, definition, input_text, conversation_id, client=client)
+        return build_run_sse_response(run, definition, input_text, cid, client=client)
 
-    cancel_ev = threading.Event()
-    set_cancel_event(rid, cancel_ev)
-    try:
-        result = run_on_loop(
-            HOST.run_sync,
-            definition=definition,
-            input_text=input_text,
-            run_id=rid,
-            conversation_id=conversation_id,
-            attachments=attachments,
-            cancel_event=cancel_ev,
-            client=client,
-        )
-    finally:
-        pop_cancel_event(rid)
-
-    updated_run = RunStore.get(rid)
-    if updated_run:
-        updated_run["events"] = SpanSink.get_events(rid)
+    rid = int(run["id"])
+    updated_run, result = execute_sync_run(
+        rid, definition, input_text, cid, client, attachments=attachments
+    )
     return jsonify({"run": updated_run, **result})
 
 
@@ -363,35 +253,9 @@ def resume_run(run_id: str):
     if denied:
         return denied
     data = request.get_json(silent=True) or {}
-    unknown = sorted(set(data) - {"decisions", "stream"})
-    if unknown:
-        return jsonify({
-            "error": "bad_decision",
-            "message": (
-                f"unexpected field(s) {', '.join(unknown)}; the resume body is "
-                '{"decisions": [...]} (plus optional "stream")'
-            ),
-        }), 400
-    try:
-        resume_payload = normalize_decisions(data)
-    except HitlPayloadError as exc:
-        return jsonify({"error": "bad_decision", "message": str(exc)}), 400
-
-    pending = run.get("pending_json")
-    expected = len(pending_action_requests(pending))
-    if not expected:
-        return jsonify({
-            "error": "bad_decision",
-            "message": "this run has no pending approval to resume",
-        }), 400
-    if len(resume_payload["decisions"]) != expected:
-        return jsonify({
-            "error": "bad_decision",
-            "message": (
-                f"the pending approval asks for {expected} decision(s), one per "
-                f"action request, but {len(resume_payload['decisions'])} were sent"
-            ),
-        }), 400
+    resume_payload, err, code = validate_resume_request(run, data)
+    if err:
+        return jsonify(err), code
 
     cid = run.get("conversation_id")
     definition_id = run.get("definition_id")
@@ -405,25 +269,9 @@ def resume_run(run_id: str):
         return build_run_sse_response(run, definition, "", int(cid) if cid else None, resume_payload, client=client)
 
     rid = int(run["id"])
-    cancel_ev = threading.Event()
-    set_cancel_event(rid, cancel_ev)
-    try:
-        result = run_on_loop(
-            HOST.run_sync,
-            definition=definition,
-            input_text="",
-            run_id=rid,
-            conversation_id=int(cid) if cid else None,
-            resume_payload=resume_payload,
-            cancel_event=cancel_ev,
-            client=client,
-        )
-    finally:
-        pop_cancel_event(rid)
-
-    updated_run = RunStore.get(rid)
-    if updated_run:
-        updated_run["events"] = SpanSink.get_events(rid)
+    updated_run, result = execute_sync_run(
+        rid, definition, "", int(cid) if cid else None, client, resume_payload=resume_payload
+    )
     return jsonify({"run": updated_run, **result})
 
 
@@ -478,28 +326,6 @@ def get_run_events(run_id: str):
     return jsonify({"events": events})
 
 
-def _phoenix_project_candidates(run: dict) -> list[str]:
-    """Phoenix project names that may hold this run's trace.
-
-    The tracer project is the agent definition's display name; the stored
-    ``phoenix_project`` is authoritative, the definition covers runs recorded
-    before that column existed, and the slug is a last-resort alias.  Only used
-    to *find* the run's own trace, never to widen what the caller may read.
-    """
-    names: list[str] = []
-    definition_id = run.get("definition_id")
-    if definition_id:
-        try:
-            definition = DefinitionStore.get(int(definition_id))
-        except Exception:
-            definition = None
-        if definition and definition.get("name"):
-            names.append(str(definition["name"]))
-    if run.get("agent_slug"):
-        names.append(str(run["agent_slug"]))
-    return names
-
-
 @run_bp.get("/runs/<run_id>/trace")
 @api_auth_required("runs:read")
 def get_run_trace(run_id: str):
@@ -518,7 +344,7 @@ def get_run_trace(run_id: str):
         return denied
     from src.services.phoenix_traces import fetch_run_trace
 
-    return jsonify(fetch_run_trace(run, _phoenix_project_candidates(run)))
+    return jsonify(fetch_run_trace(run, phoenix_project_candidates(run)))
 
 
 @run_bp.get("/runs/<run_id>/trace/spans/<span_id>")
@@ -537,4 +363,4 @@ def get_run_trace_span(run_id: str, span_id: str):
         return denied
     from src.services.phoenix_traces import fetch_run_span
 
-    return jsonify(fetch_run_span(run, span_id, _phoenix_project_candidates(run)))
+    return jsonify(fetch_run_span(run, span_id, phoenix_project_candidates(run)))

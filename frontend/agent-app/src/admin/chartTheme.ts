@@ -78,9 +78,12 @@ export function useChartPalette(): ChartPalette {
 /** Shared axis / tooltip / grid styling objects for Recharts. */
 export function chartAxisProps(p: ChartPalette) {
   return {
-    axisLine: { stroke: p.grid },
+    axisLine: { stroke: p.muted, strokeOpacity: 0.65 },
     tickLine: { stroke: "transparent" },
-    tick: { fill: p.muted, fontSize: 11 },
+    // Ticks must stay high-contrast in every theme: `muted` (#6b7280 on white
+    // in light mode) reads as grey blur at 11px. `text` (--text-secondary) is
+    // the body-copy token and is noticeably darker on both surfaces.
+    tick: { fill: p.text, fontSize: 12, fontWeight: 500 },
   };
 }
 

@@ -1,4 +1,5 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import { Download, Info, Loader2 } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -20,7 +21,8 @@ import {
 } from "recharts";
 import { chartAxisProps, chartGridProps, useChartPalette, type ChartPalette } from "../admin/chartTheme";
 import { ChartTooltip } from "../shared/ChartTooltip";
-import { buildChartModel, niceDomain, plottedValues, valueFormatter, type ChartModel } from "./chartData";
+import { buildChartModel, niceDomain, plottedValues, plottedValuesFor, axisFormatter, valueFormatter, type ChartModel } from "./chartData";
+import { downloadChartPng } from "./chartExport";
 import type { ChartSpec, ToolDataPayload } from "./toolDataTypes";
 
 const MAX_TICK_LABEL = 16;
@@ -136,6 +138,7 @@ function ScatterView({
   p,
   height,
   format,
+  axisFormat,
   showGrid,
   showLegend,
 }: {
@@ -143,6 +146,7 @@ function ScatterView({
   p: ChartPalette;
   height: number;
   format: (value: number) => string;
+  axisFormat: (value: number) => string;
   showGrid: boolean;
   showLegend: boolean;
 }) {
@@ -161,14 +165,14 @@ function ScatterView({
             name={model.xLabel}
             {...chartAxisProps(p)}
             allowDecimals={!model.integerValues}
-            tickFormatter={(v) => format(Number(v))}
+            tickFormatter={(v) => axisFormat(Number(v))}
           />
           <YAxis
             type="number"
             dataKey="y"
             {...chartAxisProps(p)}
-            tickFormatter={(v) => format(Number(v))}
-            width={56}
+            tickFormatter={(v) => axisFormat(Number(v))}
+            width={52}
           />
           <Tooltip content={<ChartTooltip format={format} />} cursor={{ strokeDasharray: "3 3" }} />
           {model.valueKeys.map((key, index) => (
@@ -195,6 +199,7 @@ function CartesianView({
   p,
   height,
   format,
+  axisFormat,
   colors,
   uid,
   showGrid,
@@ -203,6 +208,7 @@ function CartesianView({
   p: ChartPalette;
   height: number;
   format: (value: number) => string;
+  axisFormat: (value: number) => string;
   colors: string[];
   uid: string;
   showGrid: boolean;
@@ -214,7 +220,13 @@ function CartesianView({
   const singleSeries = model.series.length === 1;
   const perCategory = model.colorBy === "category" && singleSeries;
   const showValues = isBar && singleSeries && !model.stacked && model.data.length <= MAX_VALUE_LABELS;
-  const [valueMin, valueMax] = niceDomain(plottedValues(model));
+  // A dual-axis chart sizes each side against its own measures: order counts
+  // on the left and basket dollars on the right each get a readable scale
+  // instead of sharing one domain that flattens the smaller to zero.
+  const dual = !horizontal && !model.stacked && model.rightKeys.length > 0;
+  const leftKeys = dual ? model.valueKeys.filter((key) => !model.rightKeys.includes(key)) : model.valueKeys;
+  const [valueMin, valueMax] = niceDomain(dual ? plottedValuesFor(model, leftKeys) : plottedValues(model));
+  const [rightMin, rightMax] = dual ? niceDomain(plottedValuesFor(model, model.rightKeys)) : [0, 1];
   const gradientId = (suffix: string) => `tdg-${uid}-${suffix.replace(/[^a-zA-Z0-9]/g, "")}`;
   // Many or long category labels: rotate them so every bar keeps its label.
   const longestLabel = model.data.reduce(
@@ -228,7 +240,7 @@ function CartesianView({
     ...axisCommon(p, false),
     ...(horizontal
       ? {
-          tickFormatter: (v: number) => format(Number(v)),
+          tickFormatter: (v: number) => axisFormat(Number(v)),
           allowDecimals: !model.integerValues,
           domain: [valueMin, valueMax] as [number, number],
         }
@@ -239,18 +251,33 @@ function CartesianView({
         }),
   };
   const yAxis = {
+    yAxisId: "left" as const,
     type: horizontal ? ("category" as const) : ("number" as const),
     dataKey: horizontal ? model.xKey : undefined,
     ...axisCommon(p, true),
     ...(horizontal
-      ? { width: 140, tickFormatter: truncate, tick: { fill: p.text, fontSize: 11 } }
+      ? { width: 140, tickFormatter: truncate, tick: { fill: p.text, fontSize: 12, fontWeight: 500 } }
       : {
-          width: 62,
-          tickFormatter: (v: number) => format(Number(v)),
-          allowDecimals: !model.integerValues,
+          width: 52,
+          tickFormatter: (v: number) => axisFormat(Number(v)),
+          allowDecimals: dual ? !model.leftIntegerValues : !model.integerValues,
           domain: [valueMin, valueMax] as [number, number],
         }),
   };
+  // The right axis shares the spec's single valueFormat; only its scale and
+  // integer ticks come from its own measures' declared column types.
+  const rightAxis = dual
+    ? {
+        yAxisId: "right" as const,
+        type: "number" as const,
+        orientation: "right" as const,
+        ...axisCommon(p, true),
+        width: 52,
+        tickFormatter: (v: number) => axisFormat(Number(v)),
+        allowDecimals: !model.rightIntegerValues,
+        domain: [rightMin, rightMax] as [number, number],
+      }
+    : null;
   const tooltip = (
     <Tooltip content={<ChartTooltip format={format} />} cursor={isBar ? { fill: p.grid, opacity: 0.3 } : { stroke: p.grid }} />
   );
@@ -265,10 +292,11 @@ function CartesianView({
         key={series.key}
         dataKey={series.key}
         name={seriesName(series.label)}
+        yAxisId={model.rightKeys.includes(series.key) ? "right" : "left"}
         fill={perCategory ? colors[seriesIndex % colors.length] : `url(#${gradientId(series.key)})`}
         stackId={stackId}
-        radius={horizontal ? [0, 6, 6, 0] : [6, 6, 0, 0]}
-        maxBarSize={horizontal ? 24 : 54}
+        radius={horizontal ? [0, 7, 7, 0] : [7, 7, 0, 0]}
+        maxBarSize={horizontal ? 24 : 48}
         isAnimationActive={model.data.length <= 200}
       >
         {perCategory
@@ -291,13 +319,20 @@ function CartesianView({
         type={model.smooth ? "monotone" : "linear"}
         dataKey={series.key}
         name={seriesName(series.label)}
+        yAxisId={model.rightKeys.includes(series.key) ? "right" : "left"}
         stroke={series.color}
-        strokeWidth={2.25}
-        fill={`url(#${gradientId(series.key)})`}
-        fillOpacity={model.stacked ? 0.75 : 1}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={`url(#${gradientId(series.key)}-wash)`}
+        fillOpacity={model.stacked ? 0.6 : 1}
         stackId={stackId}
-        dot={model.data.length <= 40 ? { r: 2 } : false}
-        activeDot={{ r: 4 }}
+        dot={
+          model.data.length <= 40
+            ? { r: 3, strokeWidth: 2, stroke: p.card, fill: series.color }
+            : false
+        }
+        activeDot={{ r: 5, strokeWidth: 2, stroke: p.card, fill: series.color }}
         isAnimationActive={model.data.length <= 200}
       />
     ) : (
@@ -306,10 +341,17 @@ function CartesianView({
         type={model.smooth ? "monotone" : "linear"}
         dataKey={series.key}
         name={seriesName(series.label)}
+        yAxisId={model.rightKeys.includes(series.key) ? "right" : "left"}
         stroke={series.color}
-        strokeWidth={2.5}
-        dot={model.data.length <= 40 ? { r: 2.5 } : false}
-        activeDot={{ r: 4.5 }}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        dot={
+          model.data.length <= 40
+            ? { r: 3, strokeWidth: 2, stroke: p.card, fill: series.color }
+            : false
+        }
+        activeDot={{ r: 5, strokeWidth: 2, stroke: p.card, fill: series.color }}
         isAnimationActive={model.data.length <= 200}
       />
     ),
@@ -321,11 +363,14 @@ function CartesianView({
   return (
     <div className={`td-cartesian${model.yLabel ? " has-ylabel" : ""}`}>
       {model.yLabel ? <span className="td-axis-y">{model.yLabel}</span> : null}
+      {dual && model.rightYLabel ? (
+        <span className="td-axis-y td-axis-y-right">{model.rightYLabel}</span>
+      ) : null}
       <ResponsiveContainer width="100%" height={height}>
         <Chart
           data={model.data}
           layout={horizontal ? "vertical" : "horizontal"}
-          margin={{ top: showValues && !horizontal ? 20 : 8, right: 16, bottom: 4, left: 4 }}
+          margin={{ top: showValues && !horizontal ? 20 : 8, right: dual ? 60 : 28, bottom: 4, left: 4 }}
         >
           <defs>
             {model.series.map((series) => (
@@ -334,10 +379,24 @@ function CartesianView({
                 <stop offset="100%" stopColor={series.color} stopOpacity={0.55} />
               </linearGradient>
             ))}
+            {model.series.map((series) => (
+              <linearGradient
+                key={`wash-${series.key}`}
+                id={`${gradientId(series.key)}-wash`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" stopColor={series.color} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={series.color} stopOpacity={0.03} />
+              </linearGradient>
+            ))}
           </defs>
           {showGrid ? <CartesianGrid {...grid} vertical={horizontal} horizontal={!horizontal} /> : null}
           <XAxis {...xAxis} />
           <YAxis {...yAxis} />
+          {rightAxis ? <YAxis {...rightAxis} /> : null}
           {tooltip}
           {marks}
         </Chart>
@@ -351,35 +410,79 @@ export function ToolChart({ data, spec }: { data: ToolDataPayload; spec: ChartSp
   const p = useChartPalette();
   const model = useMemo(() => buildChartModel(data, spec, p.series), [data, spec, p.series]);
   const format = useMemo(() => valueFormatter(spec), [spec]);
+  const axisFormat = useMemo(() => axisFormatter(spec), [spec]);
   const height = Math.min(720, Math.max(180, Number(spec.height) || 300));
   const colors = spec.colors && spec.colors.length ? spec.colors : p.series;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const title = spec.title || `${model.type} · ${data.tool_name}`;
   const isPie = model.type === "pie" || model.type === "donut";
-  // Every field the renderer needs was resolved and written by the server; there
-  // is nothing to default here.
-  const showLegend = Boolean(spec.showLegend);
+  const cardRef = useRef<HTMLElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  // The model resolved `showLegend`/`colorBy` (with the protocol's defaults), so
+  // the card reads them from the model rather than the raw spec.
+  const showLegend = model.showLegend;
   const showGrid = spec.showGrid !== false;
-  const diagnostics = spec.diagnostics ?? [];
-  const meta = isPie
-    ? `${data.total_rows.toLocaleString()} row${data.total_rows === 1 ? "" : "s"} · ${model.data.length} group${
-        model.data.length === 1 ? "" : "s"
-      }`
-    : `${data.total_rows.toLocaleString()} row${data.total_rows === 1 ? "" : "s"}${
-        data.truncated ? ` · showing ${data.returned_rows.toLocaleString()}` : ""
-      }`;
+  const diagnostics = model.diagnostics;
+
+  // The card is captured as rendered, so the download carries the same title,
+  // subtitle, axis labels and legend the reader sees on screen.
+  async function handleDownload() {
+    const node = cardRef.current;
+    if (!node || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      await downloadChartPng(node, title);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "The chart could not be downloaded.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
-    <figure className="td-card" data-testid={`chart-card-${data.call_id}`}>
-      <figcaption className="td-card-head">
+    <figure
+      className="td-card td-card-chart"
+      ref={cardRef}
+      data-layout={spec.layout || "full"}
+      data-testid={`chart-card-${data.call_id}`}
+    >
+      <div className="td-flat-head">
         <div className="td-card-titles">
-          <span className="td-card-title">{title}</span>
+          <span className="td-flat-title">{title}</span>
           {spec.subtitle ? <span className="td-card-sub">{spec.subtitle}</span> : null}
         </div>
-        <span className="td-card-meta" title="Rows behind this chart">
-          {meta}
-        </span>
-      </figcaption>
+        {model.empty ? null : (
+          <div className="td-card-tools">
+            {diagnostics.length ? (
+              <span
+                className="td-card-note-icon"
+                title={diagnostics.join("\n")}
+                aria-label={diagnostics.join(" ")}
+              >
+                <Info size={14} strokeWidth={1.9} />
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="td-card-download"
+              data-export-skip="true"
+              data-testid={`chart-download-${data.call_id}`}
+              title="Download chart as PNG"
+              aria-label="Download chart as PNG"
+              disabled={exporting}
+              onClick={handleDownload}
+            >
+              {exporting ? (
+                <Loader2 size={14} strokeWidth={2} className="td-spin" />
+              ) : (
+                <Download size={14} strokeWidth={1.9} />
+              )}
+            </button>
+          </div>
+        )}
+      </div>
       {model.empty ? (
         <div className="td-empty">{model.empty}</div>
       ) : (
@@ -403,6 +506,7 @@ export function ToolChart({ data, spec }: { data: ToolDataPayload; spec: ChartSp
               p={p}
               height={height}
               format={format}
+              axisFormat={axisFormat}
               showGrid={showGrid}
               showLegend={showLegend}
             />
@@ -413,6 +517,7 @@ export function ToolChart({ data, spec }: { data: ToolDataPayload; spec: ChartSp
                 p={p}
                 height={height}
                 format={format}
+                axisFormat={axisFormat}
                 colors={colors}
                 uid={uid}
                 showGrid={showGrid}
@@ -429,12 +534,10 @@ export function ToolChart({ data, spec }: { data: ToolDataPayload; spec: ChartSp
           Showing {data.returned_rows.toLocaleString()} of {data.total_rows.toLocaleString()} rows (cache limit).
         </div>
       ) : null}
-      {diagnostics.length ? (
-        <ul className="td-card-notes" aria-label="Chart notes">
-          {diagnostics.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
+      {exportError ? (
+        <div className="td-card-foot td-export-error" role="alert">
+          {exportError}
+        </div>
       ) : null}
     </figure>
   );

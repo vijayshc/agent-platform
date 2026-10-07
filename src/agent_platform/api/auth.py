@@ -13,7 +13,7 @@ from typing import Callable
 
 from flask import g, jsonify, request, session
 
-from src.agent_platform.api.tokens import read_access_token
+from src.auth.access_tokens import read_access_token
 from src.agent_platform.execution.api_keys import ApiKeyStore
 
 

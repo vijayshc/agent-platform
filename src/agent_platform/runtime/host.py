@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from pathlib import Path
+import uuid
 from typing import Any, AsyncIterator
 
 from langchain_core.messages import HumanMessage
@@ -30,11 +30,20 @@ from src.agent_platform.runtime.events import (
     register_default_path_aliases,
     register_path_alias,
     sse_payload,
+    thread_message_ids,
 )
 from src.agent_platform.runtime.hitl import normalize_decisions
+from src.agent_platform.runtime.persistence import (
+    persist_run_reply,
+    prepare_reply,
+)
+from src.agent_platform.runtime.run_errors import friendly_error
+from src.agent_platform.runtime.staging import (
+    build_run_prompt,
+    stage_attachments,
+)
 from src.agent_platform.runtime.tool_data import (
-    normalize_reply,
-    resolve_tool_data,
+    DISCARD_DRAFT,
     scope_from_namespace,
 )
 from src.agent_platform.runtime.workspace import (
@@ -45,17 +54,9 @@ from src.agent_platform.runtime.workspace import (
 
 logger = logging.getLogger("text2sql.agent_platform")
 
-# A reasoning model can stream for minutes on a single turn. Without any signal
-# the run looks dead, so emit a progress event on this cadence.
 PROGRESS_INTERVAL_SECONDS = 5.0
-# Hard wall-clock ceiling for one run. Node timeouts use LangGraph's
-# ``refresh_on="auto"``, which restarts the timer on every streamed chunk, so a
-# model that dribbles tokens forever never trips them. This budget is checked on
-# every chunk and therefore fires even while data keeps flowing.
 DEFAULT_WALL_CLOCK_SECONDS = 900.0
 
-#: Raised when a turn ends without any assistant text. Reporting success with an
-#: empty answer (or, worse, an earlier turn's answer) hides a failed turn.
 _EMPTY_ANSWER = (
     "The model finished this turn without writing an answer. Run the turn again; if it "
     "repeats, raise Max output tokens for this agent or narrow the request."
@@ -64,6 +65,28 @@ _EMPTY_ANSWER = (
 
 class NoAnswerProduced(RuntimeError):
     """The turn finished without the model writing any answer text."""
+
+
+def _is_cancelled(cancel_event: Any, run_id: int | None) -> bool:
+    if cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)():
+        return True
+    if run_id is None:
+        return False
+    current = RunStore.get(run_id)
+    return bool(current and current.get("status") in {"cancelled", "cancelling"})
+
+
+async def _close_mcp(tools: list[Any]) -> None:
+    for tool in tools or []:
+        closer = getattr(tool, "close", None)
+        if closer is None:
+            continue
+        try:
+            res = closer()
+            if hasattr(res, "__await__"):
+                await res
+        except Exception:
+            pass
 
 
 class RuntimeHost:
@@ -103,12 +126,6 @@ class RuntimeHost:
         cancel_event: Any = None,
         checkpoint_id: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        # Acquire a bounded concurrency slot before any heavy work (workspace)
-        # copytree, graph compile, LLM client, MCP subprocess) so a burst of
-        # requests cannot starve the process and make runs impact each other.
-        # The slot is released in the ``finally`` below so it is guaranteed on
-        # every exit path: normal completion, error, cancel, HITL pause and
-        # client disconnect (GeneratorExit at any yield).
         from src.agent_platform.runtime.concurrency import acquire_run_slot, release_run_slot
 
         slot_sem = None
@@ -153,15 +170,9 @@ class RuntimeHost:
         workspace = run.get("workspace_dir") or str(
             run_workspace_dir(run_id, conversation_id)
         )
-        # Never surface host paths to the user: alias the roots this run can
-        # mention before any event is emitted.
         register_default_path_aliases()
         register_path_alias(workspace, "<workspace>")
-        # Only agents that explicitly ask for a demo fixture get one; a
-        # production conversation must not receive test scaffolding.
         seed_workspace(workspace, workspace_seed_for(definition.get("config") or definition))
-        # Snapshot the seeded scaffold so the Files panel can distinguish it
-        # from the artifacts this run produces.
         ensure_workspace_baseline(workspace)
         attachments = stage_attachments(attachments or run.get("input_json", {}).get("attachments") or [], workspace)
 
@@ -169,14 +180,9 @@ class RuntimeHost:
 
         from contextlib import nullcontext
 
-        # Namespace the checkpoint by a stable, non-reused UUID (the
-        # conversation/run public_id) so a fresh session can never resume an
-        # orphaned thread left behind by a recycled integer id.
         namespace = checkpoint_namespace(run_id=run_id, conversation_id=conversation_id)
         checkpoint_dir = checkpoint_dir_for(namespace)
         cp_cm = sqlite_checkpoint_storage(checkpoint_dir)
-        # Cached tool tables share the conversation's identity, so a reference
-        # the model was given in an earlier turn still resolves in this one.
         tool_scope = scope_from_namespace(namespace, checkpoint_dir)
         def_cfg = dict(definition.get("config") or definition)
         store_enabled = memory_enabled(def_cfg)
@@ -203,14 +209,12 @@ class RuntimeHost:
                 return
 
             try:
-                from src.services.otel_observability import flush_agent_traces, start_span_capture, stop_span_capture
+                from src.services.otel_observability import flush_agent_traces
             except Exception:
-                tracker = None
-                stop_span_capture = None
                 flush_agent_traces = None
             root_span_id = f"run_{run_id}"
             agent_name = definition.get("name") or "agent"
-            prompt = _build_prompt(input_text, attachments)
+            prompt = build_run_prompt(input_text, attachments)
 
             if not resume_payload:
                 SpanSink.record_event(
@@ -230,6 +234,7 @@ class RuntimeHost:
             final_text = ""
             reasoning_text = ""
             pending = None
+            chart_repair = False
             graph = compiled.runnable
 
             conv_public_id = None
@@ -242,9 +247,6 @@ class RuntimeHost:
                     pass
 
             run_public_id = run.get("public_id") if run else str(run_id)
-            # The Phoenix session groups all traces of one conversation; a run
-            # without a conversation is its own session (its run public id), so
-            # every run is always re-fetchable from Phoenix by session or trace.
             session_id = conv_public_id or (str(conversation_id) if conversation_id else "") or str(run_public_id)
             try:
                 RunStore.set_trace(run_id, session_id=session_id, project=agent_name)
@@ -253,15 +255,11 @@ class RuntimeHost:
 
             try:
                 from src.services.otel_observability import get_agent_tracer_callback
-
                 callbacks = get_agent_tracer_callback(agent_name)
             except Exception:
                 callbacks = []
 
             def_cfg = dict(definition.get("config") or definition)
-            # LangGraph default env recursion_limit is 10007; pass the platform
-            # default on invoke so a run's step budget is explicit and tunable
-            # per agent. remaining_steps on AgentState is derived from this value.
             recursion_limit = int(def_cfg.get("recursion_limit") or DEFAULT_RECURSION_LIMIT)
             configurable = {"thread_id": namespace, "run_id": run_id}
             if checkpoint_id:
@@ -283,7 +281,7 @@ class RuntimeHost:
                 if _is_cancelled(cancel_event, run_id):
                     raise RuntimeError("cancelled")
 
-                prompt = _build_prompt(input_text, attachments)
+                prompt = build_run_prompt(input_text, attachments)
                 timeout_cfg = def_cfg.get("timeout") if isinstance(def_cfg.get("timeout"), dict) else {}
                 wall_clock = float(
                     timeout_cfg.get("wall_clock") or def_cfg.get("wall_clock") or DEFAULT_WALL_CLOCK_SECONDS
@@ -295,32 +293,29 @@ class RuntimeHost:
                 last_progress = run_started
                 stream_chunks = 0
 
-                # Control-plane nodes (routers, fan-outs) never speak to the user.
                 silent_nodes = set(getattr(graph, "silent_nodes", None) or ())
-                # Every message the thread already holds has been shown to the
-                # user. On a HITL resume the interrupted turn's AIMessage is
-                # committed to the state, and the middleware re-writes it (same
-                # id) while the graph continues -- streaming it again would repeat
-                # a line the user already read. Ids mapped below are added as they
-                # are delivered, so a message re-reported by a second namespace is
-                # streamed once too.
-                delivered_ids = await _thread_message_ids(graph, config)
+                delivered_ids = await thread_message_ids(graph, config)
 
-                # A resume carries the OOTB HumanInTheLoopMiddleware decisions
-                # payload; normalize_decisions is the single place that turns an
-                # inbound payload into the value the middleware resumes with.
+                base_input = {
+                    "run_id": run_id,
+                    "workspace_dir": workspace,
+                    "conversation_id": str(conversation_id or ""),
+                    "user_id": int(user_id or 0),
+                }
                 if resume_payload:
-                    stream_input = Command(resume=normalize_decisions(resume_payload))
+                    stream_input: Any = Command(resume=normalize_decisions(resume_payload))
                 else:
-                    stream_input = {
-                        "messages": [HumanMessage(content=prompt)],
-                        "run_id": run_id,
-                        "workspace_dir": workspace,
-                        "conversation_id": str(conversation_id or ""),
-                        "user_id": int(user_id or 0),
-                    }
+                    stream_input = {"messages": [HumanMessage(content=prompt)], **base_input}
 
-                import uuid
+                final_text = ""
+                pending = None
+                # Refs whose rows were already pushed as incremental `tool_data`
+                # events. The full table is cached server-side long before the
+                # final answer streams, so rows for a `#CHART_D1` tag can be
+                # delivered the moment the tag appears in the token stream —
+                # the client renders each completed block without waiting for
+                # the whole turn.
+                sent_tool_refs: set[str] = set()
                 async for event in graph.astream(
                     stream_input,
                     config=config,
@@ -331,8 +326,6 @@ class RuntimeHost:
                         raise RuntimeError("cancelled")
                     stream_chunks += 1
                     now = time.monotonic()
-                    # Enforced per chunk so it cannot be refreshed away by a
-                    # model that keeps streaming without finishing.
                     if now > run_deadline:
                         raise RuntimeError(
                             f"Run exceeded its {int(wall_clock)}s wall-clock limit and was stopped. "
@@ -369,25 +362,61 @@ class RuntimeHost:
                                     detail={"to_agent": to_agent},
                                 )
                         elif item.get("type") == "reasoning":
-                            # Reasoning is kept in its own lane: showing it in
-                            # the transcript would mix scratchpad text into the
-                            # turn's answer. It is persisted so the timeline
-                            # can expand it after the turn completes.
                             reasoning_text += item.get("content") or item.get("delta") or ""
                         elif item.get("type") == "token":
-                            # A live preview of the model writing; the complete
-                            # message reported below is what the turn answered.
                             final_text += item.get("content") or item.get("delta") or ""
+                        elif item.get("type") == "status":
+                            if item.get("message") == DISCARD_DRAFT:
+                                chart_repair = True
                         elif item.get("type") == "chat":
-                            # LangGraph reports every model call of this run as a
-                            # complete AIMessage. That message -- and only the last
-                            # one this run produced -- is the turn's answer: a
-                            # tool-call turn answers nothing, and a looping flow's
-                            # earlier attempts are superseded, not concatenated.
                             final_text = (
                                 "" if item.get("intermediate") else str(item.get("content") or "")
                             )
                         yield item
+                        # Push cached rows for newly referenced blocks immediately,
+                        # so the UI can draw each chart/table/card as soon as its
+                        # tag has streamed instead of waiting for `done`.
+                        if item.get("type") in ("token", "chat") and final_text:
+                            try:
+                                from src.agent_platform.runtime.tool_data import (
+                                    referenced_call_ids,
+                                    resolve_references,
+                                )
+
+                                fresh = [
+                                    ref
+                                    for ref in referenced_call_ids(final_text)
+                                    if ref not in sent_tool_refs
+                                ]
+                                if fresh:
+                                    payloads = resolve_references(fresh, tool_scope)
+                                    for payload in payloads:
+                                        key = str(
+                                            payload.get("call_id")
+                                            or payload.get("ref")
+                                            or ""
+                                        )
+                                        if key:
+                                            sent_tool_refs.add(key)
+                                    # Only refs that resolved to cached rows are
+                                    # marked sent; unresolved refs are retried on
+                                    # later chunks (the tool result may land after
+                                    # the model already named the ref).
+                                    if payloads:
+                                        incremental = sse_payload(
+                                            "tool_data",
+                                            tool_data=payloads,
+                                            run_id=run_id,
+                                        )
+                                        # Deliberately not mirrored into SpanSink:
+                                        # rows would bloat the in-memory replay
+                                        # buffer; the SSE stream is the only
+                                        # consumer that needs them.
+                                        yield incremental
+                            except Exception:
+                                logger.debug(
+                                    "incremental tool_data emit failed", exc_info=True
+                                )
                         if item.get("type") == "approval_request":
                             pending = item
                             SpanSink.record_event(run_id, item["type"], detail=item)
@@ -398,10 +427,10 @@ class RuntimeHost:
                     raise RuntimeError("cancelled")
 
                 if pending:
-                    final_text, tool_data = _prepare_reply(final_text, tool_scope)
+                    final_text, tool_data = prepare_reply(final_text, tool_scope)
                     RunStore.set_pending(run_id, pending)
                     if conversation_id:
-                        _persist_assistant_message(
+                        persist_run_reply(
                             conversation_id,
                             run_id,
                             final_text,
@@ -419,18 +448,13 @@ class RuntimeHost:
                         tool_data=tool_data,
                     )
                 else:
-                    # The reply is what this run's own stream reported. Nothing is
-                    # read back from the checkpoint: the thread also holds every
-                    # earlier turn, so a turn that wrote no answer would otherwise
-                    # be reported -- and persisted -- as a repeat of the previous
-                    # answer. A turn with no answer is a failed turn.
                     if not final_text.strip():
                         raise NoAnswerProduced(_EMPTY_ANSWER)
 
-                    final_text, tool_data = _prepare_reply(final_text, tool_scope)
+                    final_text, tool_data = prepare_reply(final_text, tool_scope)
                     RunStore.finish(run_id, "success", final_reply=final_text)
                     if conversation_id:
-                        _persist_assistant_message(
+                        persist_run_reply(
                             conversation_id,
                             run_id,
                             final_text,
@@ -444,17 +468,12 @@ class RuntimeHost:
             except Exception as exc:
                 logger.exception("run failed")
                 status = "cancelled" if str(exc) == "cancelled" or _is_cancelled(cancel_event, run_id) else "error"
-                message = friendly_error(redact_paths(str(exc)))
+                message = friendly_error(redact_paths(str(exc)), chart_repair=chart_repair)
                 RunStore.finish(run_id, status, error=message)
                 yield sse_payload("error", message=message, run_id=run_id)
                 yield sse_payload("done", run_id=run_id, error=str(exc))
             finally:
                 await _close_mcp(compiled.mcp_tools)
-                if stop_span_capture is not None:
-                    try:
-                        stop_span_capture(tracker)
-                    except Exception:
-                        pass
 
     async def run_sync(self, **kwargs: Any) -> dict[str, Any]:
         events: list[dict[str, Any]] = []
@@ -480,149 +499,13 @@ class RuntimeHost:
         return {"events": events, "reply": reply, "error": error, "status": status}
 
 
-#: Provider payloads are long; the user needs the cause and the next action, not
-#: the whole gateway envelope.
-_ERROR_CLIP = 400
-
-_TOOL_CHOICE_HINT = (
-    "\n\nHint: the request forced a tool call, which this model rejects in thinking "
-    "mode. If the agent has Structured output, set its strategy to Provider (native "
-    "schema); Auto and Tool both force a tool call."
-)
-
-
-_LOOP_HINT = (
-    "\n\nHint: the flow kept looping until the graph's step budget ran out. If a router "
-    "routes back into the flow it came from, set its Max passes (for example 3) so the "
-    "loop can exit with an answer; the Studio's Checks tab flags this."
-)
-
-
-def friendly_error(message: str) -> str:
-    """A readable run error: clipped provider text plus an actionable hint."""
-    text = str(message or "")
-    lowered = text.lower()
-    clipped = text if len(text) <= _ERROR_CLIP else text[:_ERROR_CLIP] + " …"
-    if "tool_choice" in lowered and "thinking mode" in lowered:
-        return clipped + _TOOL_CHOICE_HINT
-    if "recursion limit" in lowered:
-        return clipped + _LOOP_HINT
-    return clipped
-
-
-async def _thread_message_ids(graph: Any, config: dict[str, Any]) -> set[str]:
-    """Message ids the thread already holds, i.e. everything already delivered.
-
-    LangGraph's ``add_messages`` uses the id as a message's identity, so the same
-    id re-reported later is the same message, not a new one.
-    """
-    try:
-        state = await graph.aget_state(config)
-    except Exception:
-        return set()
-    messages = (getattr(state, "values", None) or {}).get("messages") or []
-    return {str(m.id) for m in messages if getattr(m, "id", None)}
-
-
-def _prepare_reply(
-    final_text: str,
-    tool_scope: Any,
-) -> tuple[str, list[dict[str, Any]]]:
-    """Redact, validate the reply's chart specs against the cached data, package.
-
-    Validation happens here — on the server, before the reply is streamed or
-    stored — so the browser only ever receives specs that already fit the data
-    they name. A spec that cannot be drawn is rewritten into an explicit error
-    block; the runtime never substitutes columns or a chart type to make it work.
-    """
-    text = redact_paths(final_text)
-    text, report = normalize_reply(text, tool_scope)
-    if any(item.get("status") != "ok" for item in report):
-        logger.warning("chart/table blocks in this reply: %s", report)
-    return text, resolve_tool_data(text, tool_scope)
-
-
-def _persist_assistant_message(
-    conversation_id: int,
-    run_id: int,
-    content: str,
-    pending: dict[str, Any] | None,
-    agent_name: str | None = None,
-    reasoning: str = "",
-    tool_data: list[dict[str, Any]] | None = None,
-) -> None:
-    run = RunStore.get(run_id) or {}
-    meta: dict[str, Any] = {
-        "public_id": run.get("public_id"),
-        "pending": bool(pending),
-        "hitl": pending,
-        "agent": agent_name or run.get("agent_slug"),
-    }
-    if reasoning.strip():
-        # The chat timeline reads this back on reload; the live stream is
-        # rendered from reasoning SSE chunks before this row exists.
-        meta["reasoning"] = reasoning.strip()
-    if tool_data:
-        from src.agent_platform.runtime.tool_data import descriptors_from_payloads
-        # Only descriptors are persisted. The rows stay in the conversation's
-        # tool-data archive, which the read path resolves them from, so the
-        # result is not duplicated into the message row.
-        meta["tool_data"] = descriptors_from_payloads(tool_data)
-    ConversationStore.upsert_assistant_for_run(
-        conversation_id,
-        run_id,
-        content or "",
-        meta=meta,
-    )
-
-
-def _is_cancelled(cancel_event: Any, run_id: int | None) -> bool:
-    if cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)():
-        return True
-    if run_id is None:
-        return False
-    current = RunStore.get(run_id)
-    return bool(current and current.get("status") in {"cancelled", "cancelling"})
-
-
-def _build_prompt(input_text: str, attachments: list[dict[str, Any]] | None) -> str:
-    text = (input_text or "").strip()
-    if not attachments:
-        return text
-    parts = [text] if text else []
-    parts.append("\n\nAttachments:")
-    for att in attachments:
-        name = att.get("name") or att.get("filename") or "file"
-        path = att.get("workspace_path") or att.get("path")
-        parts.append(f"- {name} (saved at {path})")
-    return "\n".join(parts)
-
-
-def stage_attachments(attachments: list[dict[str, Any]], workspace_dir: str) -> list[dict[str, Any]]:
-    import shutil
-    out = []
-    ws = Path(workspace_dir)
-    ws.mkdir(parents=True, exist_ok=True)
-    for att in attachments:
-        src = att.get("path") or att.get("stored_path")
-        name = att.get("name") or att.get("filename") or (Path(src).name if src else "attachment")
-        dst = ws / name
-        if src and Path(src).exists() and not dst.exists():
-            shutil.copy2(src, dst)
-        row = dict(att)
-        row["workspace_path"] = str(dst)
-        out.append(row)
-    return out
-
-
-async def _close_mcp(tools: list[Any]) -> None:
-    for tool in tools or []:
-        closer = getattr(tool, "close", None)
-        if closer is None:
-            continue
-        try:
-            res = closer()
-            if hasattr(res, "__await__"):
-                await res
-        except Exception:
-            pass
+__all__ = [
+    "RuntimeHost",
+    "NoAnswerProduced",
+    "PROGRESS_INTERVAL_SECONDS",
+    "DEFAULT_WALL_CLOCK_SECONDS",
+    "stage_attachments",
+    "build_run_prompt",
+    "prepare_reply",
+    "persist_run_reply",
+]

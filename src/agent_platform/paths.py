@@ -103,3 +103,12 @@ def user_skills_dir() -> Path:
     path = uploads_dir() / "maf-skills"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def is_path_under(path: Path, root: Path) -> bool:
+    """Return True if path is safely inside root directory without escaping."""
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (ValueError, RuntimeError):
+        return False

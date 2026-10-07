@@ -9,7 +9,6 @@ also how rows pick up moved module paths.
 from __future__ import annotations
 
 import os
-import secrets
 import sys
 from typing import Any
 
@@ -42,6 +41,7 @@ SKILLS = {
     "backend-review": "Staff backend review",
     "implementation": "Principal implementer",
     "text2sql": "Expert Text-to-SQL data analyst",
+    "dashboard-building": "Dashboard composition from cached tool results",
 }
 
 #: Server modules that moved out of the framework package (row migration).
@@ -94,15 +94,15 @@ def feed_mcp_servers(*, http_port: int | None = None) -> list[str]:
 
     existing = MCPServer.get_by_name(HTTP_NAME)
     # An existing row keeps its url/port (an operator may have moved it) unless a
-    # port is requested explicitly; the token is always preserved.
+    # port is requested explicitly. No credential is stored: the platform mints
+    # the calling user's token per run and the server's gate verifies it.
     port = http_port or os.environ.get("MCP_HTTP_PORT") or _existing_http_port(existing) or HTTP_DEFAULT_PORT
     port = int(port)
-    token = _existing_http_token(existing) or os.environ.get("MCP_HTTP_TOKEN") or secrets.token_urlsafe(24)
     config = {
         "url": f"http://127.0.0.1:{port}/mcp",
-        "headers": {"Authorization": f"Bearer {token}"},
-        # `service` tells scripts/mcp_http_service.py what to launch. The app
-        # itself never starts anything; it only connects to the URL.
+        # `service` tells scripts/mcp_http_service.py what to launch (and marks
+        # the endpoint as one this host serves, so calls carry the run user's
+        # access token).
         "service": {"module": MCP_MODULES["Text2SQL"], "host": "127.0.0.1", "port": port},
     }
     if existing is None:
@@ -119,14 +119,6 @@ def feed_mcp_servers(*, http_port: int | None = None) -> list[str]:
         existing.save()
     names.append(HTTP_NAME)
     return names
-
-
-def _existing_http_token(server: Any) -> str:
-    """Keep the stored bearer token so a reseed never invalidates agents."""
-    if server is None:
-        return ""
-    header = str(((server.config or {}).get("headers") or {}).get("Authorization") or "")
-    return header.removeprefix("Bearer ").strip()
 
 
 def _existing_http_port(server: Any) -> int | None:

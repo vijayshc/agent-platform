@@ -105,3 +105,23 @@
     opacity: 1;
   }
 }
+
+/* Assistant answers read as page content (ChatGPT/Claude style): the outer
+   wrapper goes flat/transparent. Inner artifacts keep their own framing. */
+.aa-bubble.assistant > .aa-bubble-body {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 10px 4px;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Artifact cards sit flat on the page: keep 1px borders + header rows,
+   drop container shadows only. Scoped to artifacts so user bubbles,
+   HITL cards, and interactive controls (focus rings) are untouched. */
+.aa-bubble.assistant .chat-code-card,
+.aa-bubble.assistant .td-card {
+  box-shadow: none;
+}
